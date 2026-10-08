@@ -4,7 +4,7 @@
   --grass: #79d35c;
   --soil: #8c5a36;
   --ink: #243047;
-  --panel: rgba(255, 255, 255, 0.86);
+  --panel: rgba(255, 246, 229, 0.9);
   --shadow: rgba(27, 43, 69, 0.18);
 }
 
@@ -18,14 +18,15 @@ body {
   font-family: "Baloo 2", system-ui, sans-serif;
   color: var(--ink);
   background:
-    radial-gradient(circle at 16% 14%, rgba(255, 246, 166, 0.95) 0 62px, transparent 64px),
-    linear-gradient(#8adffd 0%, #b8f4ff 48%, #a3e46f 49%, #73ca55 100%);
+    radial-gradient(circle at 12% 12%, rgba(255, 206, 68, 0.98) 0 56px, rgba(255, 94, 58, 0.58) 58px, transparent 92px),
+    linear-gradient(135deg, rgba(255, 94, 58, 0.38), transparent 34%),
+    linear-gradient(#5fc5ee 0%, #8fe3ff 44%, #8fd85a 45%, #57b747 100%);
   overflow-x: hidden;
 }
 
 .game-shell {
-  width: min(1180px, calc(100vw - 24px));
-  margin: 0 auto;
+  width: 100%;
+  margin: 0;
   padding: 14px 0 18px;
 }
 
@@ -34,7 +35,7 @@ body {
   grid-template-columns: 1fr auto auto;
   align-items: center;
   gap: 14px;
-  margin-bottom: 12px;
+  margin: 0 24px 12px;
   padding: 12px 14px;
   border: 3px solid rgba(255, 255, 255, 0.7);
   border-radius: 8px;
@@ -97,19 +98,23 @@ p {
 .stage-wrap {
   position: relative;
   overflow: hidden;
+  width: 99vw;
+  margin: 0;
   height: min(62vh, 610px);
   min-height: 430px;
-  border: 4px solid #ffffff;
-  border-radius: 8px;
+  border: 0;
+  border-radius: 0;
   background:
-    linear-gradient(transparent 0 72%, rgba(87, 182, 77, 0.42) 72%),
-    linear-gradient(#80dcff, #dcfbff 62%, #9ce36b 63%, #6ec850);
+    radial-gradient(circle at 12% 13%, rgba(255, 221, 73, 0.92) 0 46px, rgba(239, 79, 57, 0.56) 48px, transparent 82px),
+    linear-gradient(155deg, rgba(240, 67, 55, 0.24) 0 28%, transparent 29%),
+    linear-gradient(transparent 0 72%, rgba(92, 160, 53, 0.56) 72%),
+    linear-gradient(#56bee9, #a7eaff 58%, #87d958 59%, #52b941);
   box-shadow: 0 15px 34px var(--shadow);
 }
 
 #gameCanvas {
   display: block;
-  width: 100%;
+  width: 99vw;
   height: 100%;
 }
 
@@ -134,9 +139,9 @@ p {
 
 .fruit-tray {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
-  margin-top: 12px;
+  margin: 12px 24px 0;
 }
 
 .fruit-card {
@@ -150,8 +155,11 @@ p {
   border-radius: 8px;
   font-size: 1.55rem;
   font-weight: 800;
+  font-family: inherit;
+  color: inherit;
   background: rgba(255, 255, 255, 0.78);
   box-shadow: 0 8px 18px var(--shadow);
+  cursor: pointer;
 }
 
 .fruit-card span {
@@ -162,6 +170,28 @@ p {
   color: #ffffff;
   background: #28a86c;
   animation: bounce 1.1s ease-in-out infinite;
+}
+
+.fruit-card.used {
+  color: rgba(36, 48, 71, 0.5);
+  background: rgba(255, 255, 255, 0.45);
+  filter: grayscale(0.65);
+  cursor: not-allowed;
+  animation: none;
+}
+
+.fruit-card.locked {
+  color: rgba(36, 48, 71, 0.48);
+  background: rgba(255, 255, 255, 0.38);
+  filter: grayscale(0.8);
+  cursor: not-allowed;
+  animation: none;
+}
+
+.fruit-card.unlocked {
+  color: #ffffff;
+  background: #e83f5b;
+  box-shadow: 0 8px 18px var(--shadow), inset 0 -5px rgba(0, 0, 0, 0.16);
 }
 
 @keyframes bounce {

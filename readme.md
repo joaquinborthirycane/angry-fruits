@@ -1,6 +1,6 @@
 # Angry Fruits
 
-Primera version web del juego: frutas en una cuchara-catapultadora contra verduras al otro lado de la pantalla.
+Primera version web del juego: frutas en una catapulta contra verduras al otro lado de la pantalla.
 
 ## Probar local
 
@@ -16,4 +16,3 @@ http://localhost:5173
 
 ## Controles
 
-Arrastra la fruta hacia atras desde la cuchara y sueltala para lanzarla.

@@ -17,7 +17,7 @@
       <section class="top-bar" aria-label="Panel de juego">
         <div>
           <h1>Angry Fruits</h1>
-          <p>Arrastra la fruta en la cuchara y sueltala contra las verduras.</p>
+          <p>Elige una fruta, estira la catapulta y sueltala contra las verduras.</p>
         </div>
         <div class="score-board">
           <span class="score-label">Puntos</span>
@@ -28,14 +28,15 @@
 
       <section class="stage-wrap" aria-label="Escenario de Angry Fruits">
         <canvas id="gameCanvas"></canvas>
-        <div id="message" class="message">Prepara la cuchara</div>
+        <div id="message" class="message">Elige una fruta</div>
       </section>
 
       <section class="fruit-tray" aria-label="Frutas disponibles">
-        <div class="fruit-card active" data-fruit="banana">🍌 <span>Banana</span></div>
-        <div class="fruit-card" data-fruit="mandarina">🍊 <span>Mandarina</span></div>
-        <div class="fruit-card" data-fruit="manzana">🍎 <span>Manzana</span></div>
-        <div class="fruit-card" data-fruit="pera">🍐 <span>Pera</span></div>
+        <button class="fruit-card active" data-fruit="banana" type="button">🍌 <span>Banana</span></button>
+        <button class="fruit-card" data-fruit="mandarina" type="button">🍊 <span>Mandarina</span></button>
+        <button class="fruit-card" data-fruit="manzana" type="button">🍎 <span>Manzana</span></button>
+        <button class="fruit-card" data-fruit="pera" type="button">🍐 <span>Pera</span></button>
+        <button class="fruit-card locked" data-fruit="sandia" type="button">🔒 <span>Sandia</span></button>
       </section>
     </main>
 
