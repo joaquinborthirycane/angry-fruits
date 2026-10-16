@@ -1,0 +1,47 @@
+name: Publicar juego
+
+on:
+  push:
+    tags:
+      - "publicar-*"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: false
+
+jobs:
+  publicar:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar version
+        uses: actions/checkout@v6
+
+      - name: Preparar archivos del juego
+        run: |
+          mkdir _site
+          cp index.html game.html styles.css _site/
+          cp -R src _site/src
+          touch _site/.nojekyll
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: Subir archivos
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+
+      - name: Publicar
+        id: deployment
+        uses: actions/deploy-pages@v4

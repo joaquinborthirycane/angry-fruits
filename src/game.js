@@ -19,9 +19,13 @@ const {
   Vector,
 } = matter;
 
+const WORLD_CATEGORY = 0x0001;
+const LOADED_FRUIT_CATEGORY = 0x0002;
+
 const canvas = document.querySelector("#gameCanvas");
 const stage = document.querySelector(".stage-wrap");
 const scoreEl = document.querySelector("#score");
+const livesEl = document.querySelector("#lives");
 const messageEl = document.querySelector("#message");
 const resetButton = document.querySelector("#resetButton");
 const fruitCards = [...document.querySelectorAll(".fruit-card")];
@@ -32,6 +36,7 @@ const fruits = [
   { id: "manzana", name: "Manzana", emoji: "🍎", color: "#ff4d5a", radius: 27, density: 0.0015 },
   { id: "pera", name: "Pera", emoji: "🍐", color: "#9fd356", radius: 29, density: 0.0017 },
   { id: "sandia", name: "Sandia Furia", emoji: "🍉", color: "#1fbf75", radius: 36, density: 0.0075, unlockScore: 1000 },
+  { id: "uvas", name: "Uvas Bomba", emoji: "🍇", color: "#7b3fc5", radius: 29, density: 0.002, unlockScore: 5000 },
 ];
 
 const vegetables = [
@@ -48,10 +53,12 @@ let engine;
 let render;
 let runner;
 let sling;
+let mouseConstraint;
 let currentFruit;
 let currentFruitIndex = 0;
 let launched = false;
 let score = 0;
+let lives = 3;
 let breakParticles = [];
 let catapultParts = [];
 let vegetablesLeft = 0;
@@ -62,8 +69,15 @@ let levelHasStarted = false;
 let usedFruitIds = new Set();
 let unlockedFruitIds = new Set(["banana", "mandarina", "manzana", "pera"]);
 let sandiaAnnounced = false;
+let uvasAnnounced = false;
 let audioContext;
 let lastCollisionSoundAt = 0;
+let levelBodies = [];
+let plant = null;
+let plantMouthOpenUntil = 0;
+let plantHasEaten = false;
+let structureActivated = false;
+let structureActivatedAt = 0;
 
 function setMessage(text) {
   messageEl.textContent = text;
@@ -124,8 +138,8 @@ function playNoise({ duration = 0.14, volume = 0.14, filterFrequency = 600 }) {
 }
 
 function playLaunchSound() {
-  playTone({ frequency: 170, slideTo: 520, duration: 0.18, type: "triangle", volume: 0.12 });
-  playTone({ frequency: 90, slideTo: 160, duration: 0.1, type: "sine", volume: 0.08 });
+  playTone({ frequency: 620, slideTo: 210, duration: 0.82, type: "sawtooth", volume: 0.075 });
+  playTone({ frequency: 310, slideTo: 540, duration: 0.72, type: "triangle", volume: 0.065 });
 }
 
 function playCollisionSound() {
@@ -155,6 +169,11 @@ function setScore(nextScore) {
   updateUnlocks();
 }
 
+function updateLives() {
+  livesEl.textContent = "♥".repeat(lives) + "♡".repeat(3 - lives);
+  livesEl.setAttribute("aria-label", `${lives} vidas`);
+}
+
 function updateUnlocks() {
   fruits.forEach((fruit) => {
     if (fruit.unlockScore && score >= fruit.unlockScore && !unlockedFruitIds.has(fruit.id)) {
@@ -162,6 +181,10 @@ function updateUnlocks() {
       if (fruit.id === "sandia" && !sandiaAnnounced) {
         sandiaAnnounced = true;
         setMessage("¡Nueva fruta: Sandia Furia!");
+      }
+      if (fruit.id === "uvas" && !uvasAnnounced) {
+        uvasAnnounced = true;
+        setMessage("¡Nueva fruta: Uvas Bomba!");
       }
     }
   });
@@ -189,55 +212,71 @@ function resizeCanvas() {
   canvas.height = height * window.devicePixelRatio;
 }
 
+function registerLevelBody(body) {
+  if (!levelHasStarted) {
+    Body.setStatic(body, true);
+  }
+  levelBodies.push(body);
+  return body;
+}
+
+function activateStructure(hitBody, impactVelocity) {
+  if (structureActivated) return;
+  structureActivated = true;
+  structureActivatedAt = performance.now();
+  levelBodies.forEach((body) => {
+    if (Composite.get(engine.world, body.id, "body") && ["block", "glassBlock", "steelBlock", "vegetable", "tnt"].includes(body.label)) {
+      Body.setStatic(body, false);
+    }
+  });
+
+  if (hitBody && !hitBody.isStatic && impactVelocity) {
+    Body.setVelocity(hitBody, {
+      x: impactVelocity.x * 0.52,
+      y: impactVelocity.y * 0.52,
+    });
+  }
+}
+
 function makeGround() {
-  const ground = Bodies.rectangle(width / 2, height - 18, width + 120, 44, {
+  const launcherRockWidth = Math.min(360, Math.max(250, width * 0.27));
+  const castleRockWidth = Math.min(680, Math.max(390, width * 0.46));
+  const launcherRock = Bodies.trapezoid(getCatapultAnchor().x, height + 10, launcherRockWidth, 130, 0.24, {
     isStatic: true,
     label: "ground",
-    render: { fillStyle: "#6dbb45" },
+    render: { fillStyle: "#625b59", strokeStyle: "#332f33", lineWidth: 4 },
+  });
+  const castleRock = Bodies.trapezoid(width * 0.74, height + 10, castleRockWidth, 130, 0.2, {
+    isStatic: true,
+    label: "ground",
+    render: { fillStyle: "#625b59", strokeStyle: "#332f33", lineWidth: 4 },
   });
   const leftWall = Bodies.rectangle(-32, height / 2, 64, height, { isStatic: true, render: { visible: false } });
   const rightWall = Bodies.rectangle(width + 32, height / 2, 64, height, { isStatic: true, render: { visible: false } });
-  Composite.add(engine.world, [ground, leftWall, rightWall]);
+  Composite.add(engine.world, [launcherRock, castleRock, leftWall, rightWall]);
 }
 
 function makeCatapult() {
-  const baseX = Math.max(245, width * 0.18);
-  const baseY = height - 78;
-  const frameLeft = Bodies.rectangle(baseX - 54, baseY + 16, 18, 124, {
+  const anchor = getCatapultAnchor();
+  const post = Bodies.rectangle(anchor.x, anchor.y + 54, 16, 108, {
     isStatic: true,
-    angle: -0.28,
+    isSensor: true,
     label: "catapult",
     render: { visible: false },
   });
-  const frameRight = Bodies.rectangle(baseX + 18, baseY + 12, 18, 118, {
+  const foot = Bodies.rectangle(anchor.x, anchor.y + 108, 72, 14, {
     isStatic: true,
-    angle: 0.26,
+    isSensor: true,
     label: "catapult",
     render: { visible: false },
   });
-  const base = Bodies.rectangle(baseX - 18, baseY + 70, 132, 22, {
-    isStatic: true,
-    label: "catapult",
-    render: { visible: false },
-  });
-  const arm = Bodies.rectangle(baseX - 8, baseY - 12, 118, 18, {
-    isStatic: true,
-    angle: -0.36,
-    label: "catapult",
-    render: { visible: false },
-  });
-  const cup = Bodies.circle(baseX + 44, baseY - 34, 34, {
-    isStatic: true,
-    label: "catapult",
-    render: { visible: false },
-  });
-  catapultParts = [frameLeft, frameRight, base, arm, cup];
+  catapultParts = [post, foot];
   Composite.add(engine.world, catapultParts);
-  return { x: baseX + 44, y: baseY - 48 };
+  return anchor;
 }
 
 function getCatapultAnchor() {
-  return { x: Math.max(245, width * 0.18) + 44, y: height - 126 };
+  return { x: Math.max(175, width * 0.14), y: height - 142 };
 }
 
 function makeFruit(anchor, fruitIndex = currentFruitIndex) {
@@ -262,13 +301,14 @@ function makeFruit(anchor, fruitIndex = currentFruitIndex) {
     restitution: 0.52,
     frictionAir: 0.012,
   });
+  setFruitDraggable(body, true);
   body.game = fruit;
   currentFruit = body;
   sling = Constraint.create({
     pointA: anchor,
     bodyB: currentFruit,
-    stiffness: 0.075,
-    damping: 0.01,
+    stiffness: 0.08,
+    damping: 0.12,
     render: { strokeStyle: "#5b371f", lineWidth: 7 },
   });
   Composite.add(engine.world, [currentFruit, sling]);
@@ -284,6 +324,7 @@ function makeFlyingFruit(x, y, fruit, radius, velocity) {
     render: { fillStyle: fruit.color },
   });
   body.game = fruit;
+  body.wasLaunched = true;
   Body.setVelocity(body, velocity);
   Composite.add(engine.world, body);
   return body;
@@ -304,9 +345,19 @@ function makeSeed(x, y, velocity) {
 }
 
 function getFruitBody(body) {
+  if (!body) return null;
   if (body.label === "fruit") return body;
   if (body.parent && body.parent.label === "fruit") return body.parent;
   return null;
+}
+
+function setFruitDraggable(body, draggable) {
+  const category = draggable ? LOADED_FRUIT_CATEGORY : WORLD_CATEGORY;
+  const mask = draggable ? WORLD_CATEGORY : 0xffffffff;
+  body.parts.forEach((part) => {
+    part.collisionFilter.category = category;
+    part.collisionFilter.mask = mask;
+  });
 }
 
 function getVegetableBody(body) {
@@ -324,29 +375,58 @@ function makeVegetable(x, y, veggie, size = 25) {
   });
   body.game = { ...veggie, broken: false, size };
   vegetablesLeft += 1;
-  return body;
+  return registerLevelBody(body);
 }
 
 function makeBlock(x, y, w, h) {
-  return Bodies.rectangle(x, y, w, h, {
+  return registerLevelBody(Bodies.rectangle(x, y, w, h, {
     label: "block",
     density: 0.0022,
     friction: 0.9,
     restitution: 0.12,
     render: { fillStyle: "#8f6f52" },
+  }));
+}
+
+function makeSteelBlock(x, y, w, h) {
+  const body = Bodies.rectangle(x, y, w, h, {
+    label: "steelBlock",
+    density: 0.012,
+    friction: 0.92,
+    restitution: 0.08,
+    render: { fillStyle: "#63717c" },
   });
+  body.game = { width: w, height: h };
+  return registerLevelBody(body);
+}
+
+function makeGlassBlock(x, y, w, h) {
+  const body = Bodies.rectangle(x, y, w, h, {
+    label: "glassBlock",
+    density: 0.0014,
+    friction: 0.72,
+    restitution: 0.2,
+    render: { fillStyle: "rgba(143, 225, 244, 0.68)", strokeStyle: "#d9f8ff", lineWidth: 3 },
+  });
+  body.game = { width: w, height: h };
+  return registerLevelBody(body);
 }
 
 function makeTnt(x, y) {
-  const body = Bodies.rectangle(x, y, 42, 42, {
-    label: "tnt",
-    density: 0.0018,
-    friction: 0.82,
-    restitution: 0.18,
-    render: { fillStyle: "#e53935" },
+  return makeGlassBlock(x, y, 42, 42);
+}
+
+function makePlant() {
+  plant = null;
+  plantHasEaten = false;
+  if (currentLevel <= 4) return;
+  plant = Bodies.circle(width * (0.48 + Math.random() * 0.12), height - 76, 38, {
+    isStatic: true,
+    isSensor: true,
+    label: "plant",
+    render: { visible: false },
   });
-  body.game = { exploded: false, hp: 2 };
-  return body;
+  Composite.add(engine.world, plant);
 }
 
 function makeLevelOneCastle() {
@@ -361,7 +441,7 @@ function makeLevelOneCastle() {
     makeVegetable(startX + 38, floorY - 119, vegetables[1], 25),
     makeBlock(startX - 20, floorY - 158, 24, 60),
     makeBlock(startX + 72, floorY - 158, 24, 60),
-    makeBlock(startX + 26, floorY - 195, 126, 20),
+    makeGlassBlock(startX + 26, floorY - 195, 126, 20),
     makeVegetable(startX + 26, floorY - 236, vegetables[2], 27),
     makeVegetable(startX + 118, floorY - 42, vegetables[3], 25),
     makeVegetable(startX - 122, floorY - 42, vegetables[4], 25),
@@ -391,13 +471,13 @@ function makeLevelTwoCastle() {
 
     makeBlock(startX - 52, floorY - 194, 24, 68),
     makeBlock(startX + 52, floorY - 194, 24, 68),
-    makeBlock(startX, floorY - 234, 146, 20),
+    makeGlassBlock(startX, floorY - 234, 146, 20),
     makeVegetable(startX - 92, floorY - 194, vegetables[4], 24),
     makeVegetable(startX + 92, floorY - 194, vegetables[0], 24),
 
     makeBlock(startX - 28, floorY - 274, 24, 62),
     makeBlock(startX + 28, floorY - 274, 24, 62),
-    makeBlock(startX, floorY - 312, 96, 18),
+    makeGlassBlock(startX, floorY - 312, 96, 18),
     makeVegetable(startX, floorY - 272, vegetables[1], 25),
     makeVegetable(startX - 44, floorY - 348, vegetables[2], 23),
     makeVegetable(startX + 44, floorY - 348, vegetables[3], 23),
@@ -409,6 +489,9 @@ function makeLevelTwoCastle() {
 }
 
 function makeCastle() {
+  levelBodies = [];
+  structureActivated = false;
+  structureActivatedAt = 0;
   if (currentLevel >= 3) {
     makeGeneratedCastle(currentLevel);
   } else if (currentLevel === 2) {
@@ -416,6 +499,7 @@ function makeCastle() {
   } else {
     makeLevelOneCastle();
   }
+  makePlant();
 }
 
 function makeGeneratedCastle(level) {
@@ -427,8 +511,8 @@ function makeGeneratedCastle(level) {
   const baseWidth = Math.min(470, 330 + difficulty * 24);
   const bodies = [];
 
-  function addPlatform(y, w, thickness = 20) {
-    bodies.push(makeBlock(startX, y, w, thickness));
+  function addPlatform(y, w, thickness = 20, steel = false) {
+    bodies.push(steel ? makeSteelBlock(startX, y, w, thickness) : makeBlock(startX, y, w, thickness));
   }
 
   function addSupports(y, positions, h = 66) {
@@ -452,7 +536,7 @@ function makeGeneratedCastle(level) {
     addVeggies(floorY - 214, [-baseWidth / 4, baseWidth / 4], 2);
 
     addSupports(floorY - 236, [-70, 70], 62);
-    addPlatform(floorY - 274, 178);
+    addPlatform(floorY - 274, 178, 20, true);
     addVeggies(floorY - 314, [0], 4);
   } else if (pattern === 1) {
     addSupports(floorY - 28, [-baseWidth / 2, baseWidth / 2], 72);
@@ -466,7 +550,7 @@ function makeGeneratedCastle(level) {
     addVeggies(floorY - 246, [-baseWidth / 3, 0, baseWidth / 3], 3);
 
     addSupports(floorY - 268, [0], 72);
-    addPlatform(floorY - 314, 150);
+    addPlatform(floorY - 314, 150, 20, true);
     addVeggies(floorY - 354, [-44, 44], 1);
   } else if (pattern === 2) {
     [-baseWidth / 3, baseWidth / 3].forEach((towerX, towerIndex) => {
@@ -477,7 +561,7 @@ function makeGeneratedCastle(level) {
       bodies.push(makeBlock(startX + towerX, floorY - 178, 96, 18));
       addVeggies(floorY - 216, [towerX - 30, towerX + 30], towerIndex + 2);
     });
-    addPlatform(floorY - 254, baseWidth - 70);
+    addPlatform(floorY - 254, baseWidth - 70, 20, true);
     bodies.push(makeTnt(startX, floorY - 296));
     addVeggies(floorY - 296, [-96, 96], 4);
   } else {
@@ -489,7 +573,7 @@ function makeGeneratedCastle(level) {
       bodies.push(makeVegetable(startX + x + 42, y - 78, vegetables[(level + index) % vegetables.length], 22));
       if (index === 1 || index === 3) bodies.push(makeTnt(startX + x + 82, y - 78));
     });
-    addPlatform(floorY - 310, baseWidth - 90);
+    addPlatform(floorY - 310, baseWidth - 90, 20, true);
     addVeggies(floorY - 350, [-70, 0, 70], 2);
   }
 
@@ -528,6 +612,25 @@ function breakVegetable(body) {
   } else {
     setMessage("¡Verdura rota!");
   }
+}
+
+function breakSteel(body) {
+  if (!body || !Composite.get(engine.world, body.id, "body")) return;
+  addBreak(body.position.x, body.position.y, "#b9c4cc", "💥");
+  playBreakSound();
+  Composite.remove(engine.world, body);
+  setScore(score + 50);
+  setMessage("¡La sandia rompio el acero!");
+}
+
+function breakBuildingBlock(body) {
+  if (!body || !Composite.get(engine.world, body.id, "body")) return;
+  const isGlass = body.label === "glassBlock";
+  addBreak(body.position.x, body.position.y, isGlass ? "#b9f2ff" : "#9a704d", isGlass ? "✦" : "▪");
+  playBreakSound();
+  Composite.remove(engine.world, body);
+  setScore(score + (isGlass ? 35 : 20));
+  setMessage(isGlass ? "¡Cristal roto!" : "¡Madera rota!");
 }
 
 function explodeTnt(body) {
@@ -571,7 +674,8 @@ function damageTnt(body, damage = 1) {
 }
 
 function checkFallenVegetables() {
-  if (!levelHasStarted || levelChanging) return;
+  if (!levelHasStarted || !structureActivated || levelChanging) return;
+  if (performance.now() - structureActivatedAt < 650) return;
 
   Composite.allBodies(engine.world).forEach((body) => {
     if (body.label === "tnt" && !body.game.exploded) {
@@ -593,9 +697,33 @@ function checkFallenVegetables() {
   });
 }
 
+function removeStoppedFruits() {
+  if (!levelHasStarted || levelChanging) return;
+  const now = performance.now();
+
+  Composite.allBodies(engine.world).forEach((body) => {
+    if (body.label !== "fruit" || !body.wasLaunched) return;
+    if (body.position.y > height + 90 || body.position.x < -120 || body.position.x > width + 120) {
+      Composite.remove(engine.world, body);
+      return;
+    }
+
+    const isStill = body.speed < 0.28 && Math.abs(body.angularVelocity) < 0.08;
+    if (!isStill) {
+      body.restStartedAt = null;
+      return;
+    }
+    if (!body.restStartedAt) body.restStartedAt = now;
+    if (now - body.restStartedAt >= 3000) {
+      addBreak(body.position.x, body.position.y, body.game.color, "✦");
+      Composite.remove(engine.world, body);
+    }
+  });
+}
+
 function clearLevelBodies({ clearTimers = true } = {}) {
   Composite.allBodies(engine.world).forEach((body) => {
-    if (["block", "vegetable", "fruit", "seed", "tnt"].includes(body.label)) {
+    if (["block", "glassBlock", "steelBlock", "vegetable", "fruit", "seed", "tnt", "plant"].includes(body.label)) {
       Composite.remove(engine.world, body);
     }
   });
@@ -604,6 +732,10 @@ function clearLevelBodies({ clearTimers = true } = {}) {
     sling = null;
   }
   currentFruit = null;
+  plant = null;
+  levelBodies = [];
+  structureActivated = false;
+  structureActivatedAt = 0;
   if (clearTimers) clearPowerTimers();
 }
 
@@ -623,8 +755,9 @@ function finishLevel() {
     breakParticles = [];
     clearLevelBodies({ clearTimers: false });
     makeCastle();
-    makeFruit(getCatapultAnchor(), 0);
     levelChanging = false;
+    makeFruit(getCatapultAnchor(), 0);
+    updateFruitTray();
     setMessage(`Nivel ${currentLevel}: mas verduras`);
   }, 1300);
 }
@@ -649,13 +782,23 @@ function activatePower(fruitBody) {
     addPowerTimer(() => {
       if (!Composite.get(engine.world, fruitBody.id, "body")) return;
       Body.setVelocity(fruitBody, {
-        x: -Math.abs(fruitBody.velocity.x) * 0.85,
-        y: fruitBody.velocity.y - 5.8,
+        x: -Math.max(10, Math.abs(fruitBody.velocity.x) * 1.25 + 4),
+        y: Math.min(-5, fruitBody.velocity.y - 7.2),
       });
-      Body.setAngularVelocity(fruitBody, -0.55);
+      Body.setAngularVelocity(fruitBody, -0.78);
       addBreak(fruitBody.position.x, fruitBody.position.y, "#fff06b", "↩");
       setMessage("¡Banana bumeran!");
-    }, 760);
+    }, 560);
+
+    addPowerTimer(() => {
+      if (!Composite.get(engine.world, fruitBody.id, "body")) return;
+      Body.setVelocity(fruitBody, {
+        x: -Math.max(14, Math.abs(fruitBody.velocity.x) * 1.12),
+        y: fruitBody.velocity.y - 2.6,
+      });
+      Body.setAngularVelocity(fruitBody, -0.95);
+      addBreak(fruitBody.position.x, fruitBody.position.y, "#ffe66d", "↶");
+    }, 980);
   }
 
   if (fruitBody.game.id === "mandarina") {
@@ -711,6 +854,79 @@ function activatePower(fruitBody) {
       setMessage("¡Sandia Furia!");
     }, 260);
   }
+
+  if (fruitBody.game.id === "uvas") {
+    Body.setVelocity(fruitBody, {
+      x: fruitBody.velocity.x * 1.24 + 1.8,
+      y: fruitBody.velocity.y * 1.18 - 0.8,
+    });
+    addPowerTimer(() => {
+      if (!Composite.get(engine.world, fruitBody.id, "body")) return;
+      const { x, y } = fruitBody.position;
+      const base = { x: fruitBody.velocity.x, y: fruitBody.velocity.y };
+      Composite.remove(engine.world, fruitBody);
+      addBreak(x, y, "#9b5de5", "🍇");
+      const grapeGroup = Body.nextGroup(true);
+
+      for (let i = 0; i < 7; i += 1) {
+        const angle = -0.85 + i * 0.28;
+        const grape = makeFlyingFruit(x, y, { ...fruitBody.game, grapeBomb: true, emoji: "●" }, 11, {
+          x: base.x * 1.05 + Math.cos(angle) * (5.5 + i * 0.18),
+          y: base.y * 0.9 + Math.sin(angle) * 6,
+        });
+        grape.game.grapeBomb = true;
+        grape.collisionFilter.group = grapeGroup;
+      }
+      setMessage("¡Racimo bomba!");
+    }, 360);
+  }
+}
+
+function explodeGrape(body) {
+  if (!body || body.game.exploded || !Composite.get(engine.world, body.id, "body")) return;
+  body.game.exploded = true;
+  const origin = { ...body.position };
+  Composite.remove(engine.world, body);
+  addBreak(origin.x, origin.y, "#9b5de5", "💥");
+  playBreakSound();
+
+  Composite.allBodies(engine.world).forEach((target) => {
+    const offset = Vector.sub(target.position, origin);
+    const distance = Vector.magnitude(offset);
+    if (distance > 92 || target.isStatic) return;
+    if (target.label === "vegetable") breakVegetable(target);
+    if (target.label === "tnt") damageTnt(target, 2);
+    if (["block", "glassBlock"].includes(target.label)) {
+      breakBuildingBlock(target);
+    }
+  });
+}
+
+function schedulePlantAttack() {
+  if (!plant || plantHasEaten) return;
+
+  function tryToEat(attemptsLeft) {
+    if (!plant || plantHasEaten || levelChanging) return;
+    const flyingFruits = Composite.allBodies(engine.world).filter(
+      (body) => body.label === "fruit" && body.wasLaunched && body.speed > 1 && body.position.y < height - 58,
+    );
+
+    if (!flyingFruits.length) {
+      if (attemptsLeft > 0) addPowerTimer(() => tryToEat(attemptsLeft - 1), 280);
+      return;
+    }
+
+    const victim = flyingFruits[Math.floor(Math.random() * flyingFruits.length)];
+    plantHasEaten = true;
+    plantMouthOpenUntil = performance.now() + 850;
+    addBreak(victim.position.x, victim.position.y, "#79c943", "CHOMP!");
+    addBreak(plant.position.x, plant.position.y - 24, "#e53950", "🌿");
+    Composite.remove(engine.world, victim);
+    setMessage("¡ÑAM! La planta se comio la fruta");
+    playNoise({ duration: 0.28, volume: 0.14, filterFrequency: 380 });
+  }
+
+  addPowerTimer(() => tryToEat(6), 720 + Math.random() * 520);
 }
 
 function nextFruit() {
@@ -738,7 +954,7 @@ function updateFruitTray() {
     card.classList.toggle("active", index === currentFruitIndex && !isUsed && !isLocked && !launched);
     card.classList.toggle("used", isUsed);
     card.classList.toggle("locked", isLocked);
-    card.classList.toggle("unlocked", fruit.id === "sandia" && !isLocked && !isUsed);
+    card.classList.toggle("unlocked", ["sandia", "uvas"].includes(fruit.id) && !isLocked && !isUsed);
     card.disabled = isLocked || isUsed || launched || levelChanging;
   });
 }
@@ -773,7 +989,15 @@ function drawLabels() {
     if (body.label === "tnt") {
       drawTnt(ctx, body);
     }
+    if (body.label === "steelBlock") {
+      drawSteelBlock(ctx, body);
+    }
+    if (body.label === "glassBlock") {
+      drawGlassBlock(ctx, body);
+    }
   });
+
+  drawPlant(ctx);
 
   if (currentFruit && !launched) {
     ctx.setLineDash([8, 8]);
@@ -795,60 +1019,132 @@ function drawLabels() {
 function drawCatapult(ctx) {
   if (!catapultParts.length) return;
   const anchor = getCatapultAnchor();
-  const baseX = anchor.x - 44;
-  const baseY = anchor.y + 48;
 
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  ctx.strokeStyle = "#6d4428";
-  ctx.lineWidth = 14;
+  ctx.strokeStyle = "#58351f";
+  ctx.lineWidth = 12;
   ctx.beginPath();
-  ctx.moveTo(baseX - 78, baseY + 70);
-  ctx.lineTo(baseX + 72, baseY + 70);
+  ctx.moveTo(anchor.x, anchor.y + 18);
+  ctx.lineTo(anchor.x, anchor.y + 108);
   ctx.stroke();
 
-  ctx.strokeStyle = "#9b653a";
-  ctx.lineWidth = 18;
+  ctx.strokeStyle = "#99613a";
+  ctx.lineWidth = 10;
   ctx.beginPath();
-  ctx.moveTo(baseX - 58, baseY + 66);
-  ctx.lineTo(baseX - 86, baseY - 36);
-  ctx.moveTo(baseX + 24, baseY + 62);
-  ctx.lineTo(baseX + 52, baseY - 38);
+  ctx.moveTo(anchor.x - 25, anchor.y + 112);
+  ctx.lineTo(anchor.x + 25, anchor.y + 112);
   ctx.stroke();
 
-  ctx.strokeStyle = "#cf9058";
-  ctx.lineWidth = 18;
+  ctx.strokeStyle = "#45291d";
+  ctx.lineWidth = 6;
   ctx.beginPath();
-  ctx.moveTo(baseX - 56, baseY - 6);
-  ctx.lineTo(baseX + 48, baseY - 42);
+  ctx.moveTo(anchor.x - 18, anchor.y + 22);
+  ctx.lineTo(anchor.x, anchor.y);
+  ctx.lineTo(anchor.x + 18, anchor.y + 22);
   ctx.stroke();
-
-  ctx.fillStyle = "#efc087";
-  ctx.strokeStyle = "#9b653a";
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.ellipse(anchor.x, anchor.y + 3, 44, 29, -0.18, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.fillStyle = "#4b3628";
-  ctx.beginPath();
-  ctx.arc(baseX - 52, baseY + 76, 17, 0, Math.PI * 2);
-  ctx.arc(baseX + 52, baseY + 76, 17, 0, Math.PI * 2);
-  ctx.fill();
 
   if (currentFruit && !launched) {
-    ctx.strokeStyle = "#5b371f";
+    ctx.strokeStyle = "#362018";
     ctx.lineWidth = 5;
     ctx.beginPath();
-    ctx.moveTo(baseX - 80, baseY - 38);
+    ctx.moveTo(anchor.x - 18, anchor.y + 22);
     ctx.lineTo(currentFruit.position.x, currentFruit.position.y);
-    ctx.lineTo(baseX + 54, baseY - 40);
+    ctx.lineTo(anchor.x + 18, anchor.y + 22);
     ctx.stroke();
   }
 
+  ctx.restore();
+}
+
+function drawPlant(ctx) {
+  if (!plant) return;
+  const x = plant.position.x;
+  const y = plant.position.y;
+  const mouthOpen = performance.now() < plantMouthOpenUntil;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.strokeStyle = "#28763b";
+  ctx.lineWidth = 12;
+  ctx.beginPath();
+  ctx.moveTo(0, 34);
+  ctx.quadraticCurveTo(-8, 5, 1, -19);
+  ctx.stroke();
+  ctx.fillStyle = "#3aa655";
+  ctx.beginPath();
+  ctx.ellipse(-17, 20, 20, 9, -0.45, 0, Math.PI * 2);
+  ctx.ellipse(17, 25, 20, 9, 0.45, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = "#e53950";
+  ctx.beginPath();
+  ctx.arc(0, -25, 30, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#fff4d6";
+  const jaw = mouthOpen ? 15 : 7;
+  ctx.beginPath();
+  ctx.moveTo(-23, -25);
+  ctx.lineTo(-12, -25 - jaw);
+  ctx.lineTo(-4, -25);
+  ctx.lineTo(5, -25 - jaw);
+  ctx.lineTo(13, -25);
+  ctx.lineTo(23, -25 - jaw);
+  ctx.lineTo(23, -25 + jaw);
+  ctx.lineTo(12, -25);
+  ctx.lineTo(4, -25 + jaw);
+  ctx.lineTo(-5, -25);
+  ctx.lineTo(-13, -25 + jaw);
+  ctx.lineTo(-23, -25);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawSteelBlock(ctx, body) {
+  const width = body.game.width;
+  const height = body.game.height;
+  ctx.save();
+  ctx.translate(body.position.x, body.position.y);
+  ctx.rotate(body.angle);
+  ctx.fillStyle = "#63717c";
+  ctx.strokeStyle = "#303a43";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.roundRect(-width / 2, -height / 2, width, height, 3);
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = "#d8e0e5";
+  const insetX = Math.min(10, width * 0.2);
+  const insetY = Math.min(7, height * 0.25);
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(([dx, dy]) => {
+    ctx.beginPath();
+    ctx.arc(dx * (width / 2 - insetX), dy * (height / 2 - insetY), 2.5, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.restore();
+}
+
+function drawGlassBlock(ctx, body) {
+  const blockWidth = body.game.width;
+  const blockHeight = body.game.height;
+  ctx.save();
+  ctx.translate(body.position.x, body.position.y);
+  ctx.rotate(body.angle);
+  ctx.fillStyle = "rgba(142, 226, 245, 0.55)";
+  ctx.strokeStyle = "#e2fbff";
+  ctx.lineWidth = 3;
+  ctx.fillRect(-blockWidth / 2, -blockHeight / 2, blockWidth, blockHeight);
+  ctx.strokeRect(-blockWidth / 2, -blockHeight / 2, blockWidth, blockHeight);
+  ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-blockWidth * 0.34, blockHeight * 0.32);
+  ctx.lineTo(-blockWidth * 0.08, -blockHeight * 0.28);
+  ctx.lineTo(blockWidth * 0.1, blockHeight * 0.12);
+  ctx.lineTo(blockWidth * 0.32, -blockHeight * 0.3);
+  ctx.stroke();
   ctx.restore();
 }
 
@@ -1008,11 +1304,51 @@ function setupCollisions() {
       const fruit = bodies.map(getFruitBody).find(Boolean);
       const seed = bodies.find((body) => body.label === "seed");
       const block = bodies.find((body) => body.label === "block");
+      const glassBlock = bodies.find((body) => body.label === "glassBlock");
+      const steelBlock = bodies.find((body) => body.label === "steelBlock");
       const tnt = bodies.find((body) => body.label === "tnt");
       const speed = fruit ? Vector.magnitude(fruit.velocity) : Math.max(pair.bodyA.speed, pair.bodyB.speed);
       const hitSpeed = Math.max(pair.bodyA.speed, pair.bodyB.speed);
+      const launchedFruit = fruit?.wasLaunched ? fruit : null;
+      const projectile = launchedFruit || seed;
+      const structureBody = veggie || block || glassBlock || steelBlock || tnt;
 
-      if (tnt && levelHasStarted && fruit && speed > 1.8) {
+      if (levelHasStarted && projectile && structureBody && !structureActivated) {
+        activateStructure(structureBody, { ...projectile.velocity });
+      }
+
+      const grapeHitSurface = bodies.some((body) =>
+        ["ground", "block", "glassBlock", "steelBlock", "vegetable", "tnt"].includes(body.label),
+      );
+      if (launchedFruit?.game?.grapeBomb && grapeHitSurface && hitSpeed > 1.4) {
+        explodeGrape(launchedFruit);
+        return;
+      }
+
+      if (steelBlock && launchedFruit && launchedFruit.game.id === "sandia" && speed > 3.2) {
+        breakSteel(steelBlock);
+        return;
+      }
+      if (steelBlock && (launchedFruit || seed)) {
+        setMessage("El acero solo se rompe con la sandia");
+        return;
+      }
+
+      if (glassBlock && (launchedFruit || seed) && hitSpeed > 2.2) {
+        breakBuildingBlock(glassBlock);
+        return;
+      }
+
+      if (block && launchedFruit && launchedFruit.game.id === "mandarina") {
+        setMessage("La mandarina solo rompe cristal");
+        return;
+      }
+      if (block && ((launchedFruit && speed > 3) || (seed && seed.speed > 3.2))) {
+        breakBuildingBlock(block);
+        return;
+      }
+
+      if (tnt && levelHasStarted && launchedFruit && speed > 1.8) {
         damageTnt(tnt, 2);
       } else if (tnt && levelHasStarted && seed && seed.speed > 2.2) {
         damageTnt(tnt, 1);
@@ -1022,7 +1358,7 @@ function setupCollisions() {
         damageTnt(tnt, 2);
       } else if (tnt && levelHasStarted && hitSpeed > 5.5) {
         damageTnt(tnt, 2);
-      } else if (veggie && fruit && speed > 2.8) {
+      } else if (veggie && launchedFruit && speed > 2.8) {
         breakVegetable(veggie);
       } else if (veggie && seed && seed.speed > 3.3) {
         breakVegetable(veggie);
@@ -1037,8 +1373,11 @@ function setupCollisions() {
 
 function setupMouse() {
   const mouse = Mouse.create(render.canvas);
-  const mouseConstraint = MouseConstraint.create(engine, {
+  mouseConstraint = MouseConstraint.create(engine, {
     mouse,
+    collisionFilter: {
+      mask: LOADED_FRUIT_CATEGORY,
+    },
     constraint: {
       stiffness: 0.18,
       render: { visible: false },
@@ -1047,24 +1386,62 @@ function setupMouse() {
   Composite.add(engine.world, mouseConstraint);
   render.mouse = mouse;
 
+  Events.on(engine, "beforeUpdate", () => {
+    if (!currentFruit || launched || getFruitBody(mouseConstraint.body) !== currentFruit) return;
+
+    const anchor = getCatapultAnchor();
+    let pull = {
+      x: Math.max(0, anchor.x - mouse.position.x),
+      y: anchor.y - mouse.position.y,
+    };
+    pull.y = Math.max(-105, Math.min(105, pull.y));
+    const distance = Vector.magnitude(pull);
+    if (distance > 150) pull = Vector.mult(Vector.normalise(pull), 150);
+
+    Body.setPosition(currentFruit, Vector.sub(anchor, pull));
+    Body.setVelocity(currentFruit, { x: 0, y: 0 });
+    Body.setAngularVelocity(currentFruit, 0);
+  });
+
   Events.on(mouseConstraint, "enddrag", (event) => {
     if (getFruitBody(event.body) === currentFruit && !launched) {
       getAudioContext();
+      const launchedFruit = currentFruit;
+      const anchor = getCatapultAnchor();
+      const pull = Vector.sub(anchor, launchedFruit.position);
+      const pullDistance = Vector.magnitude(pull);
+
+      if (pullDistance < 24 || pull.x < 24) {
+        Body.setPosition(launchedFruit, anchor);
+        Body.setVelocity(launchedFruit, { x: 0, y: 0 });
+        setMessage("Arrastra la fruta hacia atras para lanzar");
+        return;
+      }
+
+      const maxPull = 150;
+      const launchPull = pullDistance > maxPull ? Vector.mult(Vector.normalise(pull), maxPull) : pull;
       launched = true;
       levelHasStarted = true;
-      usedFruitIds.add(currentFruit.game.id);
+      launchedFruit.wasLaunched = true;
+      setFruitDraggable(launchedFruit, false);
+      schedulePlantAttack();
+      usedFruitIds.add(launchedFruit.game.id);
       updateFruitTray();
-      window.setTimeout(() => {
-        if (sling) {
-          sling.bodyB = null;
-          Composite.remove(engine.world, sling);
-          sling = null;
-          activatePower(currentFruit);
-          playLaunchSound();
-          setMessage("¡Vuela fruta!");
-        }
-      }, 80);
-      addPowerTimer(nextFruit, 2500);
+
+      if (sling) {
+        sling.bodyB = null;
+        Composite.remove(engine.world, sling);
+        sling = null;
+      }
+      Body.setVelocity(launchedFruit, {
+        x: launchPull.x * 0.15,
+        y: launchPull.y * 0.15,
+      });
+      Body.setAngularVelocity(launchedFruit, launchPull.x * 0.0025);
+      activatePower(launchedFruit);
+      playLaunchSound();
+      setMessage("¡Vuela fruta!");
+      addPowerTimer(nextFruit, 3200);
     }
   });
 }
@@ -1073,30 +1450,31 @@ function drawBackground() {
   const ctx = render.context;
   ctx.save();
   const sky = ctx.createLinearGradient(0, 0, 0, height);
-  sky.addColorStop(0, "#55bde8");
-  sky.addColorStop(0.46, "#a8eaff");
-  sky.addColorStop(0.47, "#8ed857");
-  sky.addColorStop(1, "#4eb03f");
+  sky.addColorStop(0, "#532b55");
+  sky.addColorStop(0.3, "#bd3f4f");
+  sky.addColorStop(0.57, "#ff8a3d");
+  sky.addColorStop(0.58, "#4c3138");
+  sky.addColorStop(1, "#160f1a");
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, width, height);
 
-  ctx.fillStyle = "rgba(230, 54, 54, 0.18)";
+  ctx.fillStyle = "rgba(35, 20, 48, 0.34)";
   ctx.beginPath();
   ctx.moveTo(0, 0);
-  ctx.lineTo(width * 0.48, 0);
-  ctx.lineTo(0, height * 0.48);
+  ctx.lineTo(width * 0.56, 0);
+  ctx.lineTo(0, height * 0.62);
   ctx.closePath();
   ctx.fill();
 
-  ctx.fillStyle = "rgba(255, 206, 55, 0.92)";
+  ctx.fillStyle = "#ffcf3f";
   ctx.beginPath();
   ctx.arc(width * 0.1, 58, 46, 0, Math.PI * 2);
   ctx.fill();
-  ctx.strokeStyle = "rgba(235, 73, 50, 0.55)";
-  ctx.lineWidth = 15;
+  ctx.strokeStyle = "rgba(255, 64, 47, 0.75)";
+  ctx.lineWidth = 18;
   ctx.stroke();
 
-  ctx.fillStyle = "rgba(255,255,255,0.5)";
+  ctx.fillStyle = "rgba(47, 42, 62, 0.78)";
   for (const cloud of [
     [width * 0.28, 74, 38],
     [width * 0.49, 105, 30],
@@ -1108,10 +1486,27 @@ function drawBackground() {
     ctx.arc(cloud[0] + cloud[2], cloud[1], cloud[2] * 0.8, 0, Math.PI * 2);
     ctx.fill();
   }
-  ctx.fillStyle = "#7bc85d";
-  ctx.fillRect(0, height - 50, width, 50);
-  ctx.fillStyle = "#8c5a36";
-  ctx.fillRect(0, height - 18, width, 18);
+
+  ctx.strokeStyle = "#ffe967";
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(width * 0.5, 120);
+  ctx.lineTo(width * 0.47, 177);
+  ctx.lineTo(width * 0.505, 170);
+  ctx.lineTo(width * 0.475, 235);
+  ctx.stroke();
+
+  const abyss = ctx.createLinearGradient(0, height * 0.58, 0, height);
+  abyss.addColorStop(0, "rgba(45, 27, 35, 0.45)");
+  abyss.addColorStop(0.55, "#21151f");
+  abyss.addColorStop(1, "#08070b");
+  ctx.fillStyle = abyss;
+  ctx.fillRect(0, height * 0.58, width, height * 0.42);
+
+  ctx.fillStyle = "rgba(255, 74, 42, 0.2)";
+  ctx.beginPath();
+  ctx.ellipse(width * 0.5, height + 35, width * 0.28, 70, 0, 0, Math.PI * 2);
+  ctx.fill();
   ctx.restore();
 }
 
@@ -1140,6 +1535,7 @@ function startGame() {
   usedFruitIds = new Set();
   unlockedFruitIds = new Set(["banana", "mandarina", "manzana", "pera"]);
   sandiaAnnounced = false;
+  uvasAnnounced = false;
   levelHasStarted = false;
   launched = false;
   breakParticles = [];
@@ -1154,7 +1550,10 @@ function startGame() {
   setupCollisions();
   setupMouse();
 
-  Events.on(engine, "afterUpdate", checkFallenVegetables);
+  Events.on(engine, "afterUpdate", () => {
+    checkFallenVegetables();
+    removeStoppedFruits();
+  });
   Events.on(render, "beforeRender", drawBackground);
   Events.on(render, "afterRender", () => {
     drawLabels();
@@ -1165,10 +1564,17 @@ function startGame() {
   Runner.run(runner, engine);
 }
 
-resetButton.addEventListener("click", startGame);
 resetButton.addEventListener("click", () => {
   getAudioContext();
+  lives -= 1;
+  updateLives();
+  if (lives <= 0) {
+    window.location.href = "index.html";
+    return;
+  }
+  startGame();
   playLevelSound();
+  setMessage(`Te quedan ${lives} vidas`);
 });
 fruitCards.forEach((card, index) => {
   card.addEventListener("click", () => chooseFruit(index));
@@ -1178,4 +1584,5 @@ window.addEventListener("resize", () => {
   window.resizeGameTimer = window.setTimeout(startGame, 250);
 });
 
+updateLives();
 startGame();

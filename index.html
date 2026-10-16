@@ -3,44 +3,40 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Angry Fruits</title>
+    <title>Super Frutas al Rescate. by Codo77</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20261013-9" />
   </head>
-  <body>
-    <main class="game-shell">
-      <section class="top-bar" aria-label="Panel de juego">
-        <div>
-          <h1>Angry Fruits</h1>
-          <p>Elige una fruta, estira la catapulta y sueltala contra las verduras.</p>
-        </div>
-        <div class="score-board">
-          <span class="score-label">Puntos</span>
-          <strong id="score">0</strong>
-        </div>
-        <button id="resetButton" class="reset-button" type="button">Reiniciar</button>
+  <body class="start-page">
+    <main class="start-screen">
+      <div class="start-sun" aria-hidden="true"></div>
+      <div class="start-storm" aria-hidden="true"></div>
+
+      <section class="start-copy" aria-labelledby="gameTitle">
+        <p class="start-kicker">by Codo77</p>
+        <h1 id="gameTitle">Super Frutas<br />al Rescate</h1>
+        <p class="start-subtitle">¡Prepara la catapulta y rescata el reino frutal!</p>
+        <a class="play-button" href="game.html">Jugar</a>
       </section>
 
-      <section class="stage-wrap" aria-label="Escenario de Angry Fruits">
-        <canvas id="gameCanvas"></canvas>
-        <div id="message" class="message">Elige una fruta</div>
-      </section>
+      <div class="start-fruits" aria-hidden="true">
+        <span class="start-fruit fruit-banana">🍌</span>
+        <span class="start-fruit fruit-orange">🍊</span>
+        <span class="start-fruit fruit-apple">🍎</span>
+        <span class="start-fruit fruit-pear">🍐</span>
+        <span class="start-fruit fruit-watermelon">🍉</span>
+        <span class="start-fruit fruit-grapes">🍇</span>
+      </div>
 
-      <section class="fruit-tray" aria-label="Frutas disponibles">
-        <button class="fruit-card active" data-fruit="banana" type="button">🍌 <span>Banana</span></button>
-        <button class="fruit-card" data-fruit="mandarina" type="button">🍊 <span>Mandarina</span></button>
-        <button class="fruit-card" data-fruit="manzana" type="button">🍎 <span>Manzana</span></button>
-        <button class="fruit-card" data-fruit="pera" type="button">🍐 <span>Pera</span></button>
-        <button class="fruit-card locked" data-fruit="sandia" type="button">🔒 <span>Sandia</span></button>
-      </section>
+      <div class="start-cliff" aria-hidden="true"></div>
+      <div class="start-enemies" aria-hidden="true">
+        <span>🥦</span><span>🥕</span><span>🍆</span>
+      </div>
     </main>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
-    <script type="module" src="src/game.js"></script>
   </body>
 </html>
