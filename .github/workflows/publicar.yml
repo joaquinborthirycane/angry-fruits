@@ -2,8 +2,8 @@ name: Publicar juego
 
 on:
   push:
-    tags:
-      - "publicar-*"
+    branches:
+      - main
   workflow_dispatch:
 
 permissions:
@@ -17,6 +17,7 @@ concurrency:
 
 jobs:
   publicar:
+    if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'Publicar:')
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

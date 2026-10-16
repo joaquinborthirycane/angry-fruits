@@ -16,18 +16,16 @@ if [ "$(git branch --show-current)" != "main" ]; then
   exit 1
 fi
 
-message=${1:-"Publicar version estable"}
+message=${1:-"Version estable"}
 
 git add --all
 if ! git diff --cached --quiet; then
-  git commit -m "$message"
+  git commit -m "Publicar: $message"
+else
+  git commit --allow-empty -m "Publicar: $message"
 fi
 
 git push origin main
 
-tag="publicar-$(date -u +%Y%m%d-%H%M%S)"
-git tag -a "$tag" -m "$message"
-git push origin "$tag"
-
-echo "Publicacion iniciada: $tag"
+echo "Publicacion iniciada. GitHub Pages terminara en unos minutos."
 echo "URL: https://joaquinborthirycane.github.io/angry-fruits/"
