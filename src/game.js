@@ -214,7 +214,7 @@ function setScore(nextScore) {
 }
 
 function updateLives() {
-  livesEl.textContent = "♥".repeat(lives) + "♡".repeat(3 - lives);
+  livesEl.textContent = "♥".repeat(Math.max(0, lives));
   livesEl.setAttribute("aria-label", `${lives} vidas`);
 }
 
@@ -649,17 +649,35 @@ function damageWoodBlock(body, energy, projectile) {
   return true;
 }
 
-function breakVegetable(body) {
-  if (body.game.broken) return;
+function breakVegetable(body, fromKingExplosion = false) {
+  if (!body || body.game.broken) return;
+  const defeatedKing = body.game.isKing;
   body.game.broken = true;
   playBreakSound();
   addBreak(body.position.x, body.position.y, body.game.color, body.game.emoji);
   Composite.remove(engine.world, body);
   vegetablesLeft -= 1;
   setScore(score + 100);
+
+  if (defeatedKing && vegetablesLeft > 0) {
+    const remainingVegetables = Composite.allBodies(engine.world).filter(
+      (target) => target.label === "vegetable" && !target.game.broken,
+    );
+    setMessage("¡Cayo el Rey Brocoli! ¡Explosion total!");
+    remainingVegetables.forEach((target, index) => {
+      addPowerTimer(() => {
+        if (!target.game.broken) {
+          addBreak(target.position.x, target.position.y, "#ffd447", "💥");
+          breakVegetable(target, true);
+        }
+      }, 100 + index * 110);
+    });
+    return;
+  }
+
   if (vegetablesLeft <= 0) {
     finishLevel();
-  } else {
+  } else if (!fromKingExplosion) {
     setMessage("¡Verdura rota!");
   }
 }
@@ -825,6 +843,11 @@ function finishLevel() {
   } else {
     setMessage(`¡Nivel ${currentLevel} completado!`);
   }
+  const earnedExtraLife = currentLevel % 10 === 0;
+  if (earnedExtraLife) {
+    lives += 1;
+    updateLives();
+  }
   const nextLevel = currentLevel + 1;
   playLevelSound();
   addPowerTimer(() => {
@@ -843,11 +866,13 @@ function finishLevel() {
     const newlyUnlocked = updateUnlocks();
     makeFruit(getCatapultAnchor(), 0);
     updateFruitTray();
-    setMessage(
-      newlyUnlocked.length
-        ? `¡Nueva fruta: ${newlyUnlocked.join(" y ")}!`
-        : `Nivel ${currentLevel}: mas verduras`,
-    );
+    if (earnedExtraLife) {
+      setMessage(`¡Vida extra! Ya tienes ${lives} vidas`);
+    } else if (newlyUnlocked.length) {
+      setMessage(`¡Nueva fruta: ${newlyUnlocked.join(" y ")}!`);
+    } else {
+      setMessage(`Nivel ${currentLevel}: mas verduras`);
+    }
   }, 1300);
 }
 
