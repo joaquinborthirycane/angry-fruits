@@ -3,6 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src 'self' https://zyyiohtocfbsuhdmauyg.supabase.co; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'" />
     <title>Super Frutas al Rescate. by Codo77</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -10,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20261013-9" />
+    <link rel="stylesheet" href="styles.css?v=20261016-10" />
   </head>
   <body>
     <main class="game-shell">
@@ -46,7 +48,30 @@
       </section>
     </main>
 
+    <dialog id="gameOverDialog" class="game-over-dialog">
+      <div class="game-over-content">
+        <p class="dialog-kicker">Fin de la partida</p>
+        <h2>¡Gran lanzamiento!</h2>
+        <p class="final-score">Conseguiste <strong id="finalScore">0</strong> puntos</p>
+        <form id="scoreForm" class="score-form">
+          <label for="playerName">Tu nombre</label>
+          <div class="score-form-row">
+            <input id="playerName" name="playerName" type="text" minlength="2" maxlength="16" autocomplete="nickname" required />
+            <button type="submit">Guardar</button>
+          </div>
+          <p id="scoreStatus" class="score-status" aria-live="polite"></p>
+        </form>
+        <section class="leaderboard-panel dialog-ranking" aria-labelledby="gameRankingTitle">
+          <h3 id="gameRankingTitle">Top 10</h3>
+          <ol id="gameLeaderboard" class="leaderboard-list" aria-live="polite">
+            <li class="leaderboard-status">Cargando ranking...</li>
+          </ol>
+        </section>
+        <a class="home-button" href="index.html">Volver al inicio</a>
+      </div>
+    </dialog>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
-    <script type="module" src="src/game.js?v=20261016-4"></script>
+    <script type="module" src="src/game.js?v=20261016-5"></script>
   </body>
 </html>

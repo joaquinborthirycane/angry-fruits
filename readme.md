@@ -28,4 +28,16 @@ El juego publico esta en:
 https://joaquinborthirycane.github.io/angry-fruits/
 ```
 
+## Ranking online
+
+El ranking usa el proyecto `fruits` de Supabase. La estructura reproducible esta en `supabase/schema.sql`.
+
+- El navegador solo recibe la clave `publishable`.
+- RLS permite leer e insertar puntuaciones validas.
+- Los visitantes no pueden editar ni borrar registros.
+- Los nombres se muestran como texto y se limitan a 16 caracteres seguros.
+- `.env` contiene el token administrativo local y esta excluido de Git y de GitHub Pages.
+
+Las claves `secret`, `service_role` y el token administrativo nunca deben copiarse al frontend.
+
 ## Controles

@@ -1,3 +1,5 @@
+import { renderLeaderboard, submitScore } from "./ranking.js";
+
 const matter = window.Matter;
 
 if (!matter) {
@@ -29,13 +31,19 @@ const livesEl = document.querySelector("#lives");
 const messageEl = document.querySelector("#message");
 const resetButton = document.querySelector("#resetButton");
 const fruitCards = [...document.querySelectorAll(".fruit-card")];
+const gameOverDialog = document.querySelector("#gameOverDialog");
+const finalScoreEl = document.querySelector("#finalScore");
+const scoreForm = document.querySelector("#scoreForm");
+const playerNameInput = document.querySelector("#playerName");
+const scoreStatus = document.querySelector("#scoreStatus");
+const gameLeaderboard = document.querySelector("#gameLeaderboard");
 
 const fruits = [
   { id: "banana", name: "Banana", emoji: "🍌", color: "#ffe066", radius: 28, density: 0.0016 },
   { id: "mandarina", name: "Mandarina", emoji: "🍊", color: "#ff9f1c", radius: 25, density: 0.0013 },
   { id: "manzana", name: "Manzana", emoji: "🍎", color: "#ff4d5a", radius: 27, density: 0.0015 },
   { id: "pera", name: "Pera", emoji: "🍐", color: "#9fd356", radius: 29, density: 0.0017 },
-  { id: "sandia", name: "Sandia Furia", emoji: "🍉", color: "#1fbf75", radius: 36, density: 0.0075, unlockScore: 1000 },
+  { id: "sandia", name: "Sandia Furia", emoji: "🍉", color: "#1fbf75", radius: 36, density: 0.0012, unlockScore: 1000 },
   { id: "uvas", name: "Uvas Bomba", emoji: "🍇", color: "#7b3fc5", radius: 29, density: 0.002, unlockScore: 5000 },
 ];
 
@@ -78,6 +86,20 @@ let plantMouthOpenUntil = 0;
 let plantHasEaten = false;
 let structureActivated = false;
 let structureActivatedAt = 0;
+let gameOver = false;
+
+function finishGame() {
+  gameOver = true;
+  Runner.stop(runner);
+  Render.stop(render);
+  resetButton.disabled = true;
+  finalScoreEl.textContent = String(score);
+  scoreForm.hidden = score <= 0;
+  scoreStatus.textContent = "";
+  renderLeaderboard(gameLeaderboard);
+  gameOverDialog.showModal();
+  if (score > 0) playerNameInput.focus();
+}
 
 function setMessage(text) {
   messageEl.textContent = text;
@@ -717,6 +739,36 @@ function removeStoppedFruits() {
     if (now - body.restStartedAt >= 3000) {
       addBreak(body.position.x, body.position.y, body.game.color, "✦");
       Composite.remove(engine.world, body);
+    }
+  });
+}
+
+function applySpecialFruitPhysics() {
+  Composite.allBodies(engine.world).forEach((body) => {
+    if (body.label !== "fruit" || !body.wasLaunched) return;
+
+    if (body.game.id === "sandia") {
+      Body.applyForce(body, body.position, {
+        x: 0,
+        y: -body.mass * engine.gravity.y * engine.gravity.scale,
+      });
+    }
+
+    if (body.game.id === "pera" && body.position.y > height - 24) {
+      Body.setPosition(body, {
+        x: Math.max(getCatapultAnchor().x + 80, Math.min(width - 80, body.position.x)),
+        y: height - 105,
+      });
+      Body.setVelocity(body, {
+        x: Math.max(7, Math.abs(body.velocity.x)),
+        y: -11,
+      });
+      Body.setAngularVelocity(body, 0.2);
+      if (!body.pearRescueShown) {
+        body.pearRescueShown = true;
+        addBreak(body.position.x, body.position.y, body.game.color, "↑");
+        setMessage("¡La pera es inmune a las caidas!");
+      }
     }
   });
 }
@@ -1510,7 +1562,10 @@ function drawBackground() {
   ctx.restore();
 }
 
-function startGame() {
+function startGame({ preserveScore = false } = {}) {
+  const nextScore = preserveScore ? score : 0;
+  gameOver = false;
+  resetButton.disabled = false;
   resizeCanvas();
   if (runner) Runner.stop(runner);
   if (render) Render.stop(render);
@@ -1540,7 +1595,7 @@ function startGame() {
   launched = false;
   breakParticles = [];
   clearPowerTimers();
-  setScore(0);
+  setScore(nextScore);
   setMessage("Nivel 1: elige una fruta");
 
   makeGround();
@@ -1554,6 +1609,7 @@ function startGame() {
     checkFallenVegetables();
     removeStoppedFruits();
   });
+  Events.on(engine, "beforeUpdate", applySpecialFruitPhysics);
   Events.on(render, "beforeRender", drawBackground);
   Events.on(render, "afterRender", () => {
     drawLabels();
@@ -1569,19 +1625,36 @@ resetButton.addEventListener("click", () => {
   lives -= 1;
   updateLives();
   if (lives <= 0) {
-    window.location.href = "index.html";
+    finishGame();
     return;
   }
-  startGame();
+  startGame({ preserveScore: true });
   playLevelSound();
   setMessage(`Te quedan ${lives} vidas`);
 });
+scoreForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const submitButton = scoreForm.querySelector("button");
+  submitButton.disabled = true;
+  scoreStatus.textContent = "Guardando...";
+  try {
+    await submitScore(playerNameInput.value, score);
+    scoreStatus.textContent = "¡Puntuacion guardada!";
+    playerNameInput.disabled = true;
+    await renderLeaderboard(gameLeaderboard);
+  } catch (error) {
+    scoreStatus.textContent = error.message;
+    submitButton.disabled = false;
+  }
+});
+gameOverDialog.addEventListener("cancel", (event) => event.preventDefault());
 fruitCards.forEach((card, index) => {
   card.addEventListener("click", () => chooseFruit(index));
 });
 window.addEventListener("resize", () => {
+  if (gameOver) return;
   window.clearTimeout(window.resizeGameTimer);
-  window.resizeGameTimer = window.setTimeout(startGame, 250);
+  window.resizeGameTimer = window.setTimeout(() => startGame({ preserveScore: true }), 250);
 });
 
 updateLives();
