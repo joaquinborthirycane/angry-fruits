@@ -33,7 +33,9 @@ https://joaquinborthirycane.github.io/angry-fruits/
 El ranking usa el proyecto `fruits` de Supabase. La estructura reproducible esta en `supabase/schema.sql`.
 
 - El navegador solo recibe la clave `publishable`.
-- RLS permite leer e insertar puntuaciones validas.
+- RLS permite leer el ranking, pero bloquea la escritura directa de la tabla.
+- Las puntuaciones se guardan mediante una funcion limitada a 12 envios por minuto.
+- Un mismo nombre solo puede guardar una vez por minuto y la tabla tiene un limite no destructivo de 10.000 filas.
 - Los visitantes no pueden editar ni borrar registros.
 - Los nombres se muestran como texto y se limitan a 16 caracteres seguros.
 - `.env` contiene el token administrativo local y esta excluido de Git y de GitHub Pages.

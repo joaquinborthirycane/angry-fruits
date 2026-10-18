@@ -1,4 +1,4 @@
-import { renderLeaderboard, submitScore } from "./ranking.js";
+import { renderLeaderboard, submitScore } from "./ranking.js?v=20261018-2";
 
 const matter = window.Matter;
 
@@ -23,6 +23,13 @@ const {
 
 const WORLD_CATEGORY = 0x0001;
 const LOADED_FRUIT_CATEGORY = 0x0002;
+const GAME_SCALE = 0.7;
+const MAX_CATAPULT_PULL = 195;
+const MAX_CATAPULT_VERTICAL_PULL = 136;
+const CATAPULT_HEIGHT = 98;
+
+const scale = (value) => value * GAME_SCALE;
+const preserveMassDensity = (density) => density / (GAME_SCALE * GAME_SCALE);
 
 const canvas = document.querySelector("#gameCanvas");
 const stage = document.querySelector(".stage-wrap");
@@ -39,20 +46,20 @@ const scoreStatus = document.querySelector("#scoreStatus");
 const gameLeaderboard = document.querySelector("#gameLeaderboard");
 
 const fruits = [
-  { id: "banana", name: "Banana", emoji: "🍌", color: "#ffe066", radius: 28, density: 0.0016 },
-  { id: "mandarina", name: "Mandarina", emoji: "🍊", color: "#ff9f1c", radius: 25, density: 0.0013 },
-  { id: "manzana", name: "Manzana", emoji: "🍎", color: "#ff4d5a", radius: 27, density: 0.0015 },
-  { id: "pera", name: "Pera", emoji: "🍐", color: "#9fd356", radius: 29, density: 0.0017 },
-  { id: "sandia", name: "Sandia Furia", emoji: "🍉", color: "#1fbf75", radius: 36, density: 0.0012, unlockScore: 1000 },
-  { id: "uvas", name: "Uvas Bomba", emoji: "🍇", color: "#7b3fc5", radius: 29, density: 0.002, unlockScore: 5000 },
+  { id: "banana", name: "Banana", emoji: "🍌", color: "#ffe066", radius: scale(28), density: 0.0016 },
+  { id: "mandarina", name: "Mandarina", emoji: "🍊", color: "#ff9f1c", radius: scale(25), density: 0.0013 },
+  { id: "manzana", name: "Manzana", emoji: "🍎", color: "#ff4d5a", radius: scale(27), density: 0.0015 },
+  { id: "pera", name: "Pera", emoji: "🍐", color: "#9fd356", radius: scale(29), density: 0.0017 },
+  { id: "sandia", name: "Sandia Furia", emoji: "🍉", color: "#1fbf75", radius: scale(36), density: 0.0012, unlockScore: 1000 },
+  { id: "uvas", name: "Uvas Bomba", emoji: "🍇", color: "#7b3fc5", radius: scale(29), density: 0.002, unlockScore: 5000 },
 ];
 
 const vegetables = [
-  { name: "Brocoli", emoji: "🥦", color: "#31b96e" },
-  { name: "Zanahoria", emoji: "🥕", color: "#ff8c1a" },
-  { name: "Berenjena", emoji: "🍆", color: "#7c4cc2" },
-  { name: "Tomate", emoji: "🍅", color: "#ef3e36" },
-  { name: "Maiz", emoji: "🌽", color: "#ffd447" },
+  { name: "Brocoli", emoji: "🥦", color: "#31b96e", sizeScale: 1.16, density: 0.0024, toughness: 1.2 },
+  { name: "Zanahoria", emoji: "🥕", color: "#ff8c1a", sizeScale: 0.82, density: 0.0017, toughness: 0.82 },
+  { name: "Berenjena", emoji: "🍆", color: "#7c4cc2", sizeScale: 1.08, density: 0.0028, toughness: 1.35 },
+  { name: "Tomate", emoji: "🍅", color: "#ef3e36", sizeScale: 0.92, density: 0.0015, toughness: 0.75 },
+  { name: "Maiz", emoji: "🌽", color: "#ffd447", sizeScale: 1.24, density: 0.0032, toughness: 1.5 },
 ];
 
 let width = stage.clientWidth;
@@ -78,6 +85,7 @@ let usedFruitIds = new Set();
 let unlockedFruitIds = new Set(["banana", "mandarina", "manzana", "pera"]);
 let sandiaAnnounced = false;
 let uvasAnnounced = false;
+let pearPowerAnnounced = false;
 let audioContext;
 let lastCollisionSoundAt = 0;
 let levelBodies = [];
@@ -210,6 +218,10 @@ function updateUnlocks() {
       }
     }
   });
+  if (score >= 3000 && !pearPowerAnnounced) {
+    pearPowerAnnounced = true;
+    setMessage("¡La pera consiguio el escudo anticaida!");
+  }
   updateFruitTray();
 }
 
@@ -243,14 +255,17 @@ function registerLevelBody(body) {
 }
 
 function activateStructure(hitBody, impactVelocity) {
-  if (structureActivated) return;
   structureActivated = true;
   structureActivatedAt = performance.now();
-  levelBodies.forEach((body) => {
-    if (Composite.get(engine.world, body.id, "body") && ["block", "glassBlock", "steelBlock", "vegetable", "tnt"].includes(body.label)) {
-      Body.setStatic(body, false);
-    }
-  });
+
+  const nearbyBodies = levelBodies
+    .filter((body) => Composite.get(engine.world, body.id, "body") && body.isStatic)
+    .map((body) => ({ body, distance: Vector.magnitude(Vector.sub(body.position, hitBody.position)) }))
+    .filter(({ body, distance }) => body === hitBody || distance < scale(105))
+    .sort((a, b) => a.distance - b.distance)
+    .slice(0, 3);
+
+  nearbyBodies.forEach(({ body }) => Body.setStatic(body, false));
 
   if (hitBody && !hitBody.isStatic && impactVelocity) {
     Body.setVelocity(hitBody, {
@@ -261,14 +276,14 @@ function activateStructure(hitBody, impactVelocity) {
 }
 
 function makeGround() {
-  const launcherRockWidth = Math.min(360, Math.max(250, width * 0.27));
-  const castleRockWidth = Math.min(680, Math.max(390, width * 0.46));
-  const launcherRock = Bodies.trapezoid(getCatapultAnchor().x, height + 10, launcherRockWidth, 130, 0.24, {
+  const launcherRockWidth = scale(Math.min(360, Math.max(250, width * 0.27)));
+  const castleRockWidth = scale(Math.min(680, Math.max(390, width * 0.46)));
+  const launcherRock = Bodies.trapezoid(getCatapultAnchor().x, height + 10, launcherRockWidth, scale(130), 0.24, {
     isStatic: true,
     label: "ground",
     render: { fillStyle: "#625b59", strokeStyle: "#332f33", lineWidth: 4 },
   });
-  const castleRock = Bodies.trapezoid(width * 0.74, height + 10, castleRockWidth, 130, 0.2, {
+  const castleRock = Bodies.trapezoid(width * 0.74, height + 10, castleRockWidth, scale(130), 0.2, {
     isStatic: true,
     label: "ground",
     render: { fillStyle: "#625b59", strokeStyle: "#332f33", lineWidth: 4 },
@@ -280,13 +295,13 @@ function makeGround() {
 
 function makeCatapult() {
   const anchor = getCatapultAnchor();
-  const post = Bodies.rectangle(anchor.x, anchor.y + 54, 16, 108, {
+  const post = Bodies.rectangle(anchor.x, anchor.y + CATAPULT_HEIGHT / 2, scale(16), CATAPULT_HEIGHT, {
     isStatic: true,
     isSensor: true,
     label: "catapult",
     render: { visible: false },
   });
-  const foot = Bodies.rectangle(anchor.x, anchor.y + 108, 72, 14, {
+  const foot = Bodies.rectangle(anchor.x, anchor.y + CATAPULT_HEIGHT, scale(72), scale(14), {
     isStatic: true,
     isSensor: true,
     label: "catapult",
@@ -298,7 +313,7 @@ function makeCatapult() {
 }
 
 function getCatapultAnchor() {
-  return { x: Math.max(175, width * 0.14), y: height - 142 };
+  return { x: Math.max(225, width * 0.18), y: height - 140 };
 }
 
 function makeFruit(anchor, fruitIndex = currentFruitIndex) {
@@ -306,7 +321,7 @@ function makeFruit(anchor, fruitIndex = currentFruitIndex) {
   currentFruitIndex = fruitIndex;
   const core = Bodies.circle(anchor.x, anchor.y, fruit.radius, {
     label: "fruitCore",
-    density: fruit.density,
+    density: preserveMassDensity(fruit.density),
     restitution: 0.52,
     frictionAir: 0.012,
     render: { fillStyle: fruit.color },
@@ -319,7 +334,7 @@ function makeFruit(anchor, fruitIndex = currentFruitIndex) {
   const body = Body.create({
     label: "fruit",
     parts: [core, grabBox],
-    density: fruit.density,
+    density: preserveMassDensity(fruit.density),
     restitution: 0.52,
     frictionAir: 0.012,
   });
@@ -340,7 +355,7 @@ function makeFruit(anchor, fruitIndex = currentFruitIndex) {
 function makeFlyingFruit(x, y, fruit, radius, velocity) {
   const body = Bodies.circle(x, y, radius, {
     label: "fruit",
-    density: fruit.density,
+    density: preserveMassDensity(fruit.density),
     restitution: 0.52,
     frictionAir: 0.012,
     render: { fillStyle: fruit.color },
@@ -353,9 +368,9 @@ function makeFlyingFruit(x, y, fruit, radius, velocity) {
 }
 
 function makeSeed(x, y, velocity) {
-  const body = Bodies.circle(x, y, 7, {
+  const body = Bodies.circle(x, y, scale(7), {
     label: "seed",
-    density: 0.0012,
+    density: preserveMassDensity(0.0012),
     restitution: 0.45,
     frictionAir: 0.006,
     render: { fillStyle: "#5c3422" },
@@ -388,49 +403,71 @@ function getVegetableBody(body) {
   return null;
 }
 
-function makeVegetable(x, y, veggie, size = 25) {
-  const body = Bodies.circle(x, y, size, {
+function makeVegetable(x, y, veggie, size = 25, options = {}) {
+  const actualSize = Math.round(scale(size * veggie.sizeScale));
+  const body = Bodies.circle(x, y, actualSize, {
     label: "vegetable",
+    density: preserveMassDensity(veggie.density),
     restitution: 0.32,
     friction: 0.85,
     render: { fillStyle: veggie.color },
   });
-  body.game = { ...veggie, broken: false, size };
+  const baseHealth = 55 + actualSize * 2.4 + body.mass * 8 * veggie.toughness;
+  const maxHealth = Math.round(baseHealth * (options.healthMultiplier || 1));
+  body.game = {
+    ...veggie,
+    ...options,
+    broken: false,
+    size: actualSize,
+    health: maxHealth,
+    maxHealth,
+    lastDamageAt: 0,
+  };
   vegetablesLeft += 1;
   return registerLevelBody(body);
 }
 
 function makeBlock(x, y, w, h) {
-  return registerLevelBody(Bodies.rectangle(x, y, w, h, {
+  const actualWidth = scale(w);
+  const actualHeight = scale(h);
+  const body = Bodies.rectangle(x, y, actualWidth, actualHeight, {
     label: "block",
-    density: 0.0022,
-    friction: 0.9,
-    restitution: 0.12,
+    density: preserveMassDensity(0.006),
+    friction: 0.96,
+    frictionStatic: 1,
+    restitution: 0.06,
     render: { fillStyle: "#8f6f52" },
-  }));
+  });
+  const maxHealth = Math.round(80 + Math.sqrt(w * h) * 1.7);
+  body.game = { width: actualWidth, height: actualHeight, health: maxHealth, maxHealth };
+  return registerLevelBody(body);
 }
 
 function makeSteelBlock(x, y, w, h) {
-  const body = Bodies.rectangle(x, y, w, h, {
+  const actualWidth = scale(w);
+  const actualHeight = scale(h);
+  const body = Bodies.rectangle(x, y, actualWidth, actualHeight, {
     label: "steelBlock",
-    density: 0.012,
+    density: preserveMassDensity(0.012),
     friction: 0.92,
     restitution: 0.08,
     render: { fillStyle: "#63717c" },
   });
-  body.game = { width: w, height: h };
+  body.game = { width: actualWidth, height: actualHeight };
   return registerLevelBody(body);
 }
 
 function makeGlassBlock(x, y, w, h) {
-  const body = Bodies.rectangle(x, y, w, h, {
+  const actualWidth = scale(w);
+  const actualHeight = scale(h);
+  const body = Bodies.rectangle(x, y, actualWidth, actualHeight, {
     label: "glassBlock",
-    density: 0.0014,
+    density: preserveMassDensity(0.0014),
     friction: 0.72,
     restitution: 0.2,
     render: { fillStyle: "rgba(143, 225, 244, 0.68)", strokeStyle: "#d9f8ff", lineWidth: 3 },
   });
-  body.game = { width: w, height: h };
+  body.game = { width: actualWidth, height: actualHeight };
   return registerLevelBody(body);
 }
 
@@ -442,7 +479,7 @@ function makePlant() {
   plant = null;
   plantHasEaten = false;
   if (currentLevel <= 4) return;
-  plant = Bodies.circle(width * (0.48 + Math.random() * 0.12), height - 76, 38, {
+  plant = Bodies.circle(width * (0.48 + Math.random() * 0.12), height - scale(76), scale(38), {
     isStatic: true,
     isSensor: true,
     label: "plant",
@@ -451,156 +488,71 @@ function makePlant() {
   Composite.add(engine.world, plant);
 }
 
-function makeLevelOneCastle() {
-  vegetablesLeft = 0;
-  const startX = width * 0.72;
-  const floorY = height - 64;
-  const bodies = [
-    makeBlock(startX - 72, floorY - 30, 24, 72),
-    makeBlock(startX + 72, floorY - 30, 24, 72),
-    makeBlock(startX, floorY - 76, 174, 22),
-    makeVegetable(startX - 34, floorY - 120, vegetables[0], 27),
-    makeVegetable(startX + 38, floorY - 119, vegetables[1], 25),
-    makeBlock(startX - 20, floorY - 158, 24, 60),
-    makeBlock(startX + 72, floorY - 158, 24, 60),
-    makeGlassBlock(startX + 26, floorY - 195, 126, 20),
-    makeVegetable(startX + 26, floorY - 236, vegetables[2], 27),
-    makeVegetable(startX + 118, floorY - 42, vegetables[3], 25),
-    makeVegetable(startX - 122, floorY - 42, vegetables[4], 25),
-  ];
-  Composite.add(engine.world, bodies);
-}
-
-function makeLevelTwoCastle() {
-  vegetablesLeft = 0;
-  const startX = width * 0.72;
-  const floorY = height - 64;
-  const bodies = [
-    makeBlock(startX - 108, floorY - 26, 24, 64),
-    makeBlock(startX - 36, floorY - 26, 24, 64),
-    makeBlock(startX + 36, floorY - 26, 24, 64),
-    makeBlock(startX + 108, floorY - 26, 24, 64),
-    makeBlock(startX, floorY - 66, 250, 20),
-    makeVegetable(startX - 140, floorY - 44, vegetables[0], 24),
-    makeVegetable(startX + 140, floorY - 44, vegetables[1], 24),
-
-    makeBlock(startX - 82, floorY - 110, 24, 70),
-    makeBlock(startX, floorY - 110, 24, 70),
-    makeBlock(startX + 82, floorY - 110, 24, 70),
-    makeBlock(startX, floorY - 152, 200, 20),
-    makeVegetable(startX - 42, floorY - 108, vegetables[2], 25),
-    makeVegetable(startX + 42, floorY - 108, vegetables[3], 25),
-
-    makeBlock(startX - 52, floorY - 194, 24, 68),
-    makeBlock(startX + 52, floorY - 194, 24, 68),
-    makeGlassBlock(startX, floorY - 234, 146, 20),
-    makeVegetable(startX - 92, floorY - 194, vegetables[4], 24),
-    makeVegetable(startX + 92, floorY - 194, vegetables[0], 24),
-
-    makeBlock(startX - 28, floorY - 274, 24, 62),
-    makeBlock(startX + 28, floorY - 274, 24, 62),
-    makeGlassBlock(startX, floorY - 312, 96, 18),
-    makeVegetable(startX, floorY - 272, vegetables[1], 25),
-    makeVegetable(startX - 44, floorY - 348, vegetables[2], 23),
-    makeVegetable(startX + 44, floorY - 348, vegetables[3], 23),
-
-    makeBlock(startX, floorY - 382, 78, 18),
-    makeVegetable(startX, floorY - 422, vegetables[4], 25),
-  ];
-  Composite.add(engine.world, bodies);
-}
-
 function makeCastle() {
   levelBodies = [];
   structureActivated = false;
   structureActivatedAt = 0;
-  if (currentLevel >= 3) {
-    makeGeneratedCastle(currentLevel);
-  } else if (currentLevel === 2) {
-    makeLevelTwoCastle();
-  } else {
-    makeLevelOneCastle();
-  }
+  makeProgressiveCastle(currentLevel);
   makePlant();
 }
 
-function makeGeneratedCastle(level) {
+function makeProgressiveCastle(level) {
   vegetablesLeft = 0;
-  const startX = width * 0.68;
-  const floorY = height - 64;
-  const pattern = level % 4;
-  const difficulty = Math.min(level - 3, 6);
-  const baseWidth = Math.min(470, 330 + difficulty * 24);
+  const floorY = height - scale(64);
+  const moduleCount = Math.min(4, 1 + Math.floor((level - 1) / 2));
+  const regularCount = Math.min(11, level + 1);
+  const hasKing = level % 3 === 0;
+  const castleWidth = Math.min(610, width * 0.48);
+  const moduleGap = castleWidth / moduleCount;
+  const moduleWidth = Math.min(126, moduleGap - 14);
+  const startX = width - Math.max(92, width * 0.055) - castleWidth + moduleGap / 2;
   const bodies = [];
+  const slots = [];
 
-  function addPlatform(y, w, thickness = 20, steel = false) {
-    bodies.push(steel ? makeSteelBlock(startX, y, w, thickness) : makeBlock(startX, y, w, thickness));
+  for (let moduleIndex = 0; moduleIndex < moduleCount; moduleIndex += 1) {
+    const x = startX + moduleIndex * moduleGap;
+    const hasUpperFloor = level >= 2 + moduleIndex;
+    bodies.push(makeBlock(x - scale(moduleWidth * 0.34), floorY - scale(31), 22, 64));
+    bodies.push(makeBlock(x + scale(moduleWidth * 0.34), floorY - scale(31), 22, 64));
+    bodies.push(makeBlock(x, floorY - scale(70), moduleWidth, 20));
+    slots.push({ x, y: floorY - scale(31), moduleIndex });
+    slots.push({ x, y: floorY - scale(106), moduleIndex });
+
+    if (hasUpperFloor) {
+      bodies.push(makeBlock(x - scale(moduleWidth * 0.27), floorY - scale(112), 20, 64));
+      bodies.push(makeBlock(x + scale(moduleWidth * 0.27), floorY - scale(112), 20, 64));
+      const roof = level >= 3 && (moduleIndex + level) % 3 === 0 ? makeGlassBlock : makeBlock;
+      bodies.push(roof(x, floorY - scale(151), moduleWidth * 0.86, 18));
+      slots.push({ x, y: floorY - scale(186), moduleIndex });
+    }
   }
 
-  function addSupports(y, positions, h = 66) {
-    positions.forEach((x) => bodies.push(makeBlock(startX + x, y, 22, h)));
+  if (hasKing) {
+    const kingX = startX + (moduleCount - 1) * moduleGap;
+    const kingSlot = slots.find((slot) => slot.moduleIndex === moduleCount - 1 && slot.y === floorY - scale(31));
+    if (kingSlot) slots.splice(slots.indexOf(kingSlot), 1);
+    const kingRank = level / 3;
+    bodies.push(
+      makeVegetable(kingX, floorY - scale(31), vegetables[0], 31, {
+        name: "Rey Brocoli",
+        isKing: true,
+        kingRank,
+        healthMultiplier: 2.2 + kingRank * 0.55,
+      }),
+    );
   }
 
-  function addVeggies(y, positions, offset = level) {
-    positions.forEach((x, index) => {
-      bodies.push(makeVegetable(startX + x, y, vegetables[(offset + index) % vegetables.length], 23));
-    });
-  }
-
-  if (pattern === 0) {
-    addSupports(floorY - 28, [-baseWidth / 2, -baseWidth / 6, baseWidth / 6, baseWidth / 2]);
-    addPlatform(floorY - 70, baseWidth + 44);
-    addVeggies(floorY - 108, [-baseWidth / 3, 0, baseWidth / 3]);
-    bodies.push(makeTnt(startX, floorY - 108));
-
-    addSupports(floorY - 132, [-baseWidth / 3, 0, baseWidth / 3], 64);
-    addPlatform(floorY - 174, baseWidth - 64);
-    addVeggies(floorY - 214, [-baseWidth / 4, baseWidth / 4], 2);
-
-    addSupports(floorY - 236, [-70, 70], 62);
-    addPlatform(floorY - 274, 178, 20, true);
-    addVeggies(floorY - 314, [0], 4);
-  } else if (pattern === 1) {
-    addSupports(floorY - 28, [-baseWidth / 2, baseWidth / 2], 72);
-    addPlatform(floorY - 74, baseWidth + 70);
-    addVeggies(floorY - 112, [-baseWidth / 2 - 36, 0, baseWidth / 2 + 36]);
-
-    addSupports(floorY - 136, [-baseWidth / 2 + 42, baseWidth / 2 - 42], 118);
-    addPlatform(floorY - 206, baseWidth - 60);
-    bodies.push(makeTnt(startX - 72, floorY - 154));
-    bodies.push(makeTnt(startX + 72, floorY - 154));
-    addVeggies(floorY - 246, [-baseWidth / 3, 0, baseWidth / 3], 3);
-
-    addSupports(floorY - 268, [0], 72);
-    addPlatform(floorY - 314, 150, 20, true);
-    addVeggies(floorY - 354, [-44, 44], 1);
-  } else if (pattern === 2) {
-    [-baseWidth / 3, baseWidth / 3].forEach((towerX, towerIndex) => {
-      addSupports(floorY - 28, [towerX - 42, towerX + 42], 72);
-      bodies.push(makeBlock(startX + towerX, floorY - 74, 116, 20));
-      addVeggies(floorY - 114, [towerX], towerIndex);
-      addSupports(floorY - 138, [towerX - 30, towerX + 30], 66);
-      bodies.push(makeBlock(startX + towerX, floorY - 178, 96, 18));
-      addVeggies(floorY - 216, [towerX - 30, towerX + 30], towerIndex + 2);
-    });
-    addPlatform(floorY - 254, baseWidth - 70, 20, true);
-    bodies.push(makeTnt(startX, floorY - 296));
-    addVeggies(floorY - 296, [-96, 96], 4);
-  } else {
-    const steps = [-baseWidth / 2, -baseWidth / 4, 0, baseWidth / 4, baseWidth / 2];
-    steps.forEach((x, index) => {
-      const y = floorY - 28 - index * 54;
-      bodies.push(makeBlock(startX + x, y, 24, 64));
-      bodies.push(makeBlock(startX + x + 42, y - 40, 108, 18));
-      bodies.push(makeVegetable(startX + x + 42, y - 78, vegetables[(level + index) % vegetables.length], 22));
-      if (index === 1 || index === 3) bodies.push(makeTnt(startX + x + 82, y - 78));
-    });
-    addPlatform(floorY - 310, baseWidth - 90, 20, true);
-    addVeggies(floorY - 350, [-70, 0, 70], 2);
-  }
-
-  if (difficulty > 2) {
-    addVeggies(floorY - 42, [-baseWidth / 2 - 54, baseWidth / 2 + 54], 1);
+  for (let index = 0; index < regularCount; index += 1) {
+    const slot = slots[index % slots.length];
+    const row = Math.floor(index / slots.length);
+    const isEasy = index < Math.ceil(regularCount * 0.58);
+    const easyTypes = [vegetables[1], vegetables[3]];
+    const strongTypes = [vegetables[0], vegetables[2], vegetables[4]];
+    const veggie = isEasy
+      ? easyTypes[index % easyTypes.length]
+      : strongTypes[Math.min(strongTypes.length - 1, Math.floor((level - 1) / 3) + index) % strongTypes.length];
+    const healthMultiplier = isEasy ? 0.38 + Math.min(level, 8) * 0.015 : 0.82 + Math.min(level, 12) * 0.09;
+    bodies.push(makeVegetable(slot.x + scale(row * 14), slot.y - scale(row * 8), veggie, isEasy ? 21 : 24, { healthMultiplier }));
   }
 
   Composite.add(engine.world, bodies);
@@ -616,9 +568,57 @@ function addBreak(x, y, color, emoji) {
       life: 54 + Math.random() * 18,
       color,
       emoji: i % 6 === 0 ? emoji : "",
-      size: 7 + Math.random() * 7,
+      size: scale(7 + Math.random() * 7),
     });
   }
+}
+
+function collisionEnergy(attacker, target) {
+  if (!attacker || !target) return 0;
+  const relativeVelocity = Vector.sub(attacker.velocity, target.velocity);
+  const relativeSpeed = Vector.magnitude(relativeVelocity);
+  return 0.5 * attacker.mass * relativeSpeed * relativeSpeed;
+}
+
+function damageVegetable(body, energy, source = null) {
+  if (!body || body.game.broken || energy < 16) return;
+  const now = performance.now();
+  if (now - body.game.lastDamageAt < 160) return;
+  body.game.lastDamageAt = now;
+
+  let damage = energy / Math.max(0.65, body.game.toughness);
+  if (body.game.size >= 29 && source?.game?.id !== "sandia") {
+    damage = Math.min(damage, body.game.maxHealth * 0.48);
+  }
+  body.game.health = Math.max(0, body.game.health - damage);
+  addBreak(body.position.x, body.position.y, body.game.color, body.game.health <= 0 ? body.game.emoji : "✦");
+
+  if (body.game.health <= 0) {
+    breakVegetable(body);
+  } else {
+    setMessage(`A ${body.game.name} le queda ${Math.ceil((body.game.health / body.game.maxHealth) * 100)}%`);
+  }
+}
+
+function damageWoodBlock(body, energy, projectile) {
+  if (!body || !body.game || energy < 20) return false;
+  if (projectile?.label === "seed" && projectile.woodHit) return false;
+  if (projectile?.label === "fruit" && (projectile.woodBlocksBroken || 0) >= 2) return false;
+
+  body.game.health = Math.max(0, body.game.health - energy * 0.58);
+  addBreak(body.position.x, body.position.y, "#9a704d", "▪");
+
+  if (projectile?.label === "seed") projectile.woodHit = true;
+  if (body.game.health > 0) {
+    setMessage("¡La madera resistio el golpe!");
+    return false;
+  }
+
+  if (projectile?.label === "fruit") {
+    projectile.woodBlocksBroken = (projectile.woodBlocksBroken || 0) + 1;
+  }
+  breakBuildingBlock(body);
+  return true;
 }
 
 function breakVegetable(body) {
@@ -677,7 +677,7 @@ function explodeTnt(body) {
     });
 
     if (target.label === "vegetable") {
-      breakVegetable(target);
+      damageVegetable(target, Math.max(30, (1 - distance / 145) * 320), body);
     } else if (target.label === "tnt") {
       damageTnt(target, 2);
     }
@@ -701,7 +701,7 @@ function checkFallenVegetables() {
 
   Composite.allBodies(engine.world).forEach((body) => {
     if (body.label === "tnt" && !body.game.exploded) {
-      const tntHitGround = body.position.y > height - 82 && body.speed > 1.8;
+      const tntHitGround = body.position.y > height - scale(82) && body.speed > 1.8;
       const tntFlyingFast = body.speed > 5.5;
       if (tntHitGround || tntFlyingFast) {
         damageTnt(body, 2);
@@ -711,10 +711,10 @@ function checkFallenVegetables() {
 
     if (body.label !== "vegetable" || body.game.broken) return;
 
-    const hitGroundHard = body.position.y > height - 82 && body.speed > 2.4;
+    const hitGroundHard = body.position.y > height - scale(82) && body.speed > 2.2;
     const flyingFast = body.speed > 8.5;
     if (hitGroundHard || flyingFast) {
-      breakVegetable(body);
+      damageVegetable(body, 0.5 * body.mass * body.speed * body.speed * 0.75);
     }
   });
 }
@@ -754,7 +754,7 @@ function applySpecialFruitPhysics() {
       });
     }
 
-    if (body.game.id === "pera" && body.position.y > height - 24) {
+    if (body.game.id === "pera" && score >= 3000 && body.position.y > height - 24) {
       Body.setPosition(body, {
         x: Math.max(getCatapultAnchor().x + 80, Math.min(width - 80, body.position.x)),
         y: height - 105,
@@ -831,26 +831,9 @@ function activatePower(fruitBody) {
   }
 
   if (fruitBody.game.id === "banana") {
-    addPowerTimer(() => {
-      if (!Composite.get(engine.world, fruitBody.id, "body")) return;
-      Body.setVelocity(fruitBody, {
-        x: -Math.max(10, Math.abs(fruitBody.velocity.x) * 1.25 + 4),
-        y: Math.min(-5, fruitBody.velocity.y - 7.2),
-      });
-      Body.setAngularVelocity(fruitBody, -0.78);
-      addBreak(fruitBody.position.x, fruitBody.position.y, "#fff06b", "↩");
-      setMessage("¡Banana bumeran!");
-    }, 560);
-
-    addPowerTimer(() => {
-      if (!Composite.get(engine.world, fruitBody.id, "body")) return;
-      Body.setVelocity(fruitBody, {
-        x: -Math.max(14, Math.abs(fruitBody.velocity.x) * 1.12),
-        y: fruitBody.velocity.y - 2.6,
-      });
-      Body.setAngularVelocity(fruitBody, -0.95);
-      addBreak(fruitBody.position.x, fruitBody.position.y, "#ffe66d", "↶");
-    }, 980);
+    fruitBody.boomerangReadyAt = performance.now() + 260;
+    fruitBody.boomerangUsed = false;
+    setMessage("Haz click para activar el bumeran");
   }
 
   if (fruitBody.game.id === "mandarina") {
@@ -893,7 +876,6 @@ function activatePower(fruitBody) {
   }
 
   if (fruitBody.game.id === "sandia") {
-    Body.setDensity(fruitBody, 0.009);
     addPowerTimer(() => {
       if (!Composite.get(engine.world, fruitBody.id, "body")) return;
       Body.setVelocity(fruitBody, {
@@ -934,6 +916,26 @@ function activatePower(fruitBody) {
   }
 }
 
+function triggerBananaBoomerang() {
+  const banana = Composite.allBodies(engine.world).find(
+    (body) =>
+      body.label === "fruit" &&
+      body.wasLaunched &&
+      body.game?.id === "banana" &&
+      !body.boomerangUsed &&
+      performance.now() >= (body.boomerangReadyAt || Infinity),
+  );
+  if (!banana) return;
+  banana.boomerangUsed = true;
+  Body.setVelocity(banana, {
+    x: -Math.max(12, Math.abs(banana.velocity.x) * 1.2 + 3),
+    y: Math.min(-4, banana.velocity.y - 5.5),
+  });
+  Body.setAngularVelocity(banana, -0.9);
+  addBreak(banana.position.x, banana.position.y, "#fff06b", "↩");
+  setMessage("¡Banana bumeran!");
+}
+
 function explodeGrape(body) {
   if (!body || body.game.exploded || !Composite.get(engine.world, body.id, "body")) return;
   body.game.exploded = true;
@@ -946,9 +948,13 @@ function explodeGrape(body) {
     const offset = Vector.sub(target.position, origin);
     const distance = Vector.magnitude(offset);
     if (distance > 92 || target.isStatic) return;
-    if (target.label === "vegetable") breakVegetable(target);
+    if (target.label === "vegetable") {
+      damageVegetable(target, Math.max(24, (1 - distance / 92) * 230), body);
+    }
     if (target.label === "tnt") damageTnt(target, 2);
-    if (["block", "glassBlock"].includes(target.label)) {
+    if (target.label === "block") {
+      damageWoodBlock(target, Math.max(20, (1 - distance / 92) * 180), body);
+    } else if (target.label === "glassBlock") {
       breakBuildingBlock(target);
     }
   });
@@ -995,6 +1001,26 @@ function nextFruit() {
   setMessage(`Turno de ${fruits[nextIndex].name}`);
 }
 
+function resetFruitsAfterLife() {
+  clearPowerTimers();
+  Composite.allBodies(engine.world).forEach((body) => {
+    if (["fruit", "seed"].includes(body.label)) {
+      Composite.remove(engine.world, body);
+    }
+  });
+  if (sling) {
+    Composite.remove(engine.world, sling);
+    sling = null;
+  }
+
+  currentFruit = null;
+  currentFruitIndex = 0;
+  usedFruitIds = new Set();
+  launched = false;
+  makeFruit(getCatapultAnchor(), 0);
+  updateFruitTray();
+}
+
 function updateFruitTray() {
   fruitCards.forEach((card, index) => {
     const fruit = fruits[index];
@@ -1007,6 +1033,7 @@ function updateFruitTray() {
     card.classList.toggle("used", isUsed);
     card.classList.toggle("locked", isLocked);
     card.classList.toggle("unlocked", ["sandia", "uvas"].includes(fruit.id) && !isLocked && !isUsed);
+    card.classList.toggle("powered", fruit.id === "pera" && score >= 3000 && !isUsed);
     card.disabled = isLocked || isUsed || launched || levelChanging;
   });
 }
@@ -1052,12 +1079,13 @@ function drawLabels() {
   drawPlant(ctx);
 
   if (currentFruit && !launched) {
-    ctx.setLineDash([8, 8]);
-    ctx.lineWidth = 4;
+    const guideSize = scale(92);
+    ctx.setLineDash([scale(8), scale(8)]);
+    ctx.lineWidth = scale(4);
     ctx.strokeStyle = "rgba(255, 255, 255, 0.86)";
     ctx.fillStyle = "rgba(255, 255, 255, 0.13)";
     ctx.beginPath();
-    ctx.roundRect(currentFruit.position.x - 46, currentFruit.position.y - 46, 92, 92, 16);
+    ctx.roundRect(currentFruit.position.x - guideSize / 2, currentFruit.position.y - guideSize / 2, guideSize, guideSize, scale(16));
     ctx.fill();
     ctx.stroke();
     ctx.setLineDash([]);
@@ -1077,34 +1105,34 @@ function drawCatapult(ctx) {
   ctx.lineJoin = "round";
 
   ctx.strokeStyle = "#58351f";
-  ctx.lineWidth = 12;
+  ctx.lineWidth = scale(12);
   ctx.beginPath();
-  ctx.moveTo(anchor.x, anchor.y + 18);
-  ctx.lineTo(anchor.x, anchor.y + 108);
+  ctx.moveTo(anchor.x, anchor.y + scale(18));
+  ctx.lineTo(anchor.x, anchor.y + CATAPULT_HEIGHT);
   ctx.stroke();
 
   ctx.strokeStyle = "#99613a";
-  ctx.lineWidth = 10;
+  ctx.lineWidth = scale(10);
   ctx.beginPath();
-  ctx.moveTo(anchor.x - 25, anchor.y + 112);
-  ctx.lineTo(anchor.x + 25, anchor.y + 112);
+  ctx.moveTo(anchor.x - scale(25), anchor.y + CATAPULT_HEIGHT + scale(4));
+  ctx.lineTo(anchor.x + scale(25), anchor.y + CATAPULT_HEIGHT + scale(4));
   ctx.stroke();
 
   ctx.strokeStyle = "#45291d";
-  ctx.lineWidth = 6;
+  ctx.lineWidth = scale(6);
   ctx.beginPath();
-  ctx.moveTo(anchor.x - 18, anchor.y + 22);
+  ctx.moveTo(anchor.x - scale(18), anchor.y + scale(22));
   ctx.lineTo(anchor.x, anchor.y);
-  ctx.lineTo(anchor.x + 18, anchor.y + 22);
+  ctx.lineTo(anchor.x + scale(18), anchor.y + scale(22));
   ctx.stroke();
 
   if (currentFruit && !launched) {
     ctx.strokeStyle = "#362018";
-    ctx.lineWidth = 5;
+    ctx.lineWidth = scale(5);
     ctx.beginPath();
-    ctx.moveTo(anchor.x - 18, anchor.y + 22);
+    ctx.moveTo(anchor.x - scale(18), anchor.y + scale(22));
     ctx.lineTo(currentFruit.position.x, currentFruit.position.y);
-    ctx.lineTo(anchor.x + 18, anchor.y + 22);
+    ctx.lineTo(anchor.x + scale(18), anchor.y + scale(22));
     ctx.stroke();
   }
 
@@ -1119,6 +1147,7 @@ function drawPlant(ctx) {
 
   ctx.save();
   ctx.translate(x, y);
+  ctx.scale(GAME_SCALE, GAME_SCALE);
   ctx.strokeStyle = "#28763b";
   ctx.lineWidth = 12;
   ctx.beginPath();
@@ -1206,6 +1235,19 @@ function drawAngryFruit(ctx, body) {
   const y = body.position.y;
   const faceScale = Math.max(0.56, radius / 28);
 
+  if (body.game.id === "pera" && score >= 3000) {
+    ctx.save();
+    const glow = ctx.createRadialGradient(x, y, radius * 0.45, x, y, radius * 1.35);
+    glow.addColorStop(0, "rgba(130, 255, 225, 0.55)");
+    glow.addColorStop(0.65, "rgba(68, 214, 255, 0.34)");
+    glow.addColorStop(1, "rgba(68, 214, 255, 0)");
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(x, y, radius * 1.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
   ctx.font = `${Math.max(24, radius * 1.35)}px serif`;
   ctx.fillText(body.game.emoji, x, y + 1);
 
@@ -1242,6 +1284,11 @@ function drawScaredVegetable(ctx, body) {
   const y = body.position.y;
   const faceScale = Math.max(0.55, radius / 27);
 
+  if (body.game.isKing) {
+    ctx.font = `${Math.max(25, radius * 0.9)}px serif`;
+    ctx.fillText("👑", x, y - radius - 12);
+  }
+
   ctx.font = `${Math.max(28, radius * 1.35)}px serif`;
   ctx.fillText(body.game.emoji, x, y + 1);
 
@@ -1269,6 +1316,14 @@ function drawScaredVegetable(ctx, body) {
   ctx.ellipse(0, 11 * faceScale, 5 * faceScale, 7 * faceScale, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+
+  const healthRatio = Math.max(0, body.game.health / body.game.maxHealth);
+  const barWidth = Math.max(34, radius * 1.7);
+  const barY = y - radius - (body.game.isKing ? 38 : 13);
+  ctx.fillStyle = "rgba(25, 20, 28, 0.82)";
+  ctx.fillRect(x - barWidth / 2 - 2, barY - 2, barWidth + 4, 8);
+  ctx.fillStyle = healthRatio > 0.55 ? "#42d66b" : healthRatio > 0.25 ? "#ffd447" : "#ef4d3f";
+  ctx.fillRect(x - barWidth / 2, barY, barWidth * healthRatio, 4);
 }
 
 function drawSeed(ctx, body) {
@@ -1365,7 +1420,7 @@ function setupCollisions() {
       const projectile = launchedFruit || seed;
       const structureBody = veggie || block || glassBlock || steelBlock || tnt;
 
-      if (levelHasStarted && projectile && structureBody && !structureActivated) {
+      if (levelHasStarted && projectile && structureBody) {
         activateStructure(structureBody, { ...projectile.velocity });
       }
 
@@ -1386,7 +1441,7 @@ function setupCollisions() {
         return;
       }
 
-      if (glassBlock && (launchedFruit || seed) && hitSpeed > 2.2) {
+      if (glassBlock && launchedFruit && hitSpeed > 2.2) {
         breakBuildingBlock(glassBlock);
         return;
       }
@@ -1395,8 +1450,13 @@ function setupCollisions() {
         setMessage("La mandarina solo rompe cristal");
         return;
       }
-      if (block && ((launchedFruit && speed > 3) || (seed && seed.speed > 3.2))) {
-        breakBuildingBlock(block);
+      if (block && launchedFruit && speed > 2.2) {
+        damageWoodBlock(block, collisionEnergy(launchedFruit, block), launchedFruit);
+        return;
+      }
+      if (block && seed && seed.speed > 2.2) {
+        damageWoodBlock(block, collisionEnergy(seed, block), seed);
+        Composite.remove(engine.world, seed);
         return;
       }
 
@@ -1410,14 +1470,14 @@ function setupCollisions() {
         damageTnt(tnt, 2);
       } else if (tnt && levelHasStarted && hitSpeed > 5.5) {
         damageTnt(tnt, 2);
-      } else if (veggie && launchedFruit && speed > 2.8) {
-        breakVegetable(veggie);
+      } else if (veggie && launchedFruit && speed > 2.2) {
+        damageVegetable(veggie, collisionEnergy(launchedFruit, veggie), launchedFruit);
       } else if (veggie && seed && seed.speed > 3.3) {
-        breakVegetable(veggie);
+        damageVegetable(veggie, collisionEnergy(seed, veggie), seed);
       } else if (levelHasStarted && veggie && block && block.speed > 3.2) {
-        breakVegetable(veggie);
+        damageVegetable(veggie, collisionEnergy(block, veggie), block);
       } else if (levelHasStarted && veggie && bodies.some((body) => body.label === "ground") && veggie.speed > 2.2) {
-        breakVegetable(veggie);
+        damageVegetable(veggie, 0.5 * veggie.mass * veggie.speed * veggie.speed * 0.9);
       }
     });
   });
@@ -1446,9 +1506,9 @@ function setupMouse() {
       x: Math.max(0, anchor.x - mouse.position.x),
       y: anchor.y - mouse.position.y,
     };
-    pull.y = Math.max(-105, Math.min(105, pull.y));
+    pull.y = Math.max(-MAX_CATAPULT_VERTICAL_PULL, Math.min(MAX_CATAPULT_VERTICAL_PULL, pull.y));
     const distance = Vector.magnitude(pull);
-    if (distance > 150) pull = Vector.mult(Vector.normalise(pull), 150);
+    if (distance > MAX_CATAPULT_PULL) pull = Vector.mult(Vector.normalise(pull), MAX_CATAPULT_PULL);
 
     Body.setPosition(currentFruit, Vector.sub(anchor, pull));
     Body.setVelocity(currentFruit, { x: 0, y: 0 });
@@ -1470,8 +1530,8 @@ function setupMouse() {
         return;
       }
 
-      const maxPull = 150;
-      const launchPull = pullDistance > maxPull ? Vector.mult(Vector.normalise(pull), maxPull) : pull;
+      const launchPull =
+        pullDistance > MAX_CATAPULT_PULL ? Vector.mult(Vector.normalise(pull), MAX_CATAPULT_PULL) : pull;
       launched = true;
       levelHasStarted = true;
       launchedFruit.wasLaunched = true;
@@ -1589,8 +1649,11 @@ function startGame({ preserveScore = false } = {}) {
   currentFruitIndex = 0;
   usedFruitIds = new Set();
   unlockedFruitIds = new Set(["banana", "mandarina", "manzana", "pera"]);
-  sandiaAnnounced = false;
-  uvasAnnounced = false;
+  if (!preserveScore) {
+    sandiaAnnounced = false;
+    uvasAnnounced = false;
+    pearPowerAnnounced = false;
+  }
   levelHasStarted = false;
   launched = false;
   breakParticles = [];
@@ -1621,6 +1684,7 @@ function startGame({ preserveScore = false } = {}) {
 }
 
 resetButton.addEventListener("click", () => {
+  if (levelChanging || gameOver) return;
   getAudioContext();
   lives -= 1;
   updateLives();
@@ -1628,9 +1692,12 @@ resetButton.addEventListener("click", () => {
     finishGame();
     return;
   }
-  startGame({ preserveScore: true });
+  resetFruitsAfterLife();
   playLevelSound();
   setMessage(`Te quedan ${lives} vidas`);
+});
+canvas.addEventListener("pointerdown", () => {
+  if (launched && !levelChanging) triggerBananaBoomerang();
 });
 scoreForm.addEventListener("submit", async (event) => {
   event.preventDefault();

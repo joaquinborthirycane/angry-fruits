@@ -26,12 +26,15 @@ export async function submitScore(name, score) {
   if (!/^[\p{L}\p{N} ._-]+$/u.test(cleanName)) {
     throw new Error("Usa solo letras, numeros, espacios, punto, guion o guion bajo");
   }
-  const response = await fetch(`${SUPABASE_URL}/rest/v1/scores`, {
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/rpc/submit_score`, {
     method: "POST",
     headers: headers({ "Content-Type": "application/json", Prefer: "return=minimal" }),
-    body: JSON.stringify({ name: cleanName, score: cleanScore }),
+    body: JSON.stringify({ p_name: cleanName, p_score: cleanScore }),
   });
-  if (!response.ok) throw new Error("No se pudo guardar la puntuacion");
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.message || "No se pudo guardar la puntuacion");
+  }
 }
 
 export async function renderLeaderboard(list) {
