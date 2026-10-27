@@ -635,6 +635,35 @@ p {
   pointer-events: none;
 }
 
+.world-intro {
+  position: absolute;
+  z-index: 5;
+  top: 38%;
+  left: 50%;
+  width: min(560px, 82vw);
+  padding: 18px 24px;
+  border: 4px solid #ffd447;
+  border-radius: 8px;
+  color: #ffffff;
+  text-align: center;
+  font-size: clamp(1.8rem, 5vw, 3.4rem);
+  font-weight: 800;
+  background: rgba(28, 19, 35, 0.9);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.7);
+  pointer-events: none;
+}
+
+.world-intro.show {
+  animation: worldIntro 2.4s ease both;
+}
+
+@keyframes worldIntro {
+  0% { opacity: 0; transform: translate(-50%, -50%) scale(0.7); }
+  18%, 72% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -65%) scale(1.05); }
+}
+
 .fruit-tray {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -1152,7 +1181,9 @@ p {
 
 .costume-dialog {
   width: min(620px, 92vw);
+  max-height: calc(100vh - 28px);
   padding: 0;
+  overflow: auto;
   border: 4px solid #243047;
   border-radius: 8px;
   color: #243047;
@@ -1290,6 +1321,41 @@ p {
   color: #76727b;
   background: #dedbe0;
   cursor: not-allowed;
+}
+
+.upgrade-title {
+  margin: 22px 0 10px;
+  color: #243047;
+  font-size: 1.35rem;
+}
+
+.upgrade-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.upgrade-option {
+  min-height: 78px;
+  padding: 8px;
+  border: 3px solid #4a9bc5;
+  border-radius: 8px;
+  color: #243047;
+  font: inherit;
+  background: #e5f7ff;
+  cursor: pointer;
+}
+
+.upgrade-option strong,
+.upgrade-option span,
+.upgrade-option small {
+  display: block;
+}
+
+.upgrade-option:disabled {
+  border-color: #44a36d;
+  background: #dff8e9;
+  cursor: default;
 }
 
 .close-costume-button {

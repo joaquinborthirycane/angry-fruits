@@ -39,6 +39,7 @@ const livesEl = document.querySelector("#lives");
 const messageEl = document.querySelector("#message");
 const weatherIndicator = document.querySelector("#weatherIndicator");
 const weatherLayer = document.querySelector("#weatherLayer");
+const worldIntro = document.querySelector("#worldIntro");
 const resetButton = document.querySelector("#resetButton");
 const costumeButton = document.querySelector("#costumeButton");
 const costumeDialog = document.querySelector("#costumeDialog");
@@ -46,6 +47,7 @@ const costumeGrid = document.querySelector("#costumeGrid");
 const coinsEl = document.querySelector("#coins");
 const replayButton = document.querySelector("#replayButton");
 const closeCostumeButton = document.querySelector("#closeCostumeButton");
+const upgradeGrid = document.querySelector("#upgradeGrid");
 const fruitCards = [...document.querySelectorAll(".fruit-card")];
 const gameOverDialog = document.querySelector("#gameOverDialog");
 const finalScoreEl = document.querySelector("#finalScore");
@@ -139,6 +141,20 @@ let coins = Number(window.localStorage.getItem("super-frutas-coins")) || 0;
 let activeTrajectory = [];
 let bestTrajectory = [];
 let replayStartedAt = 0;
+let portals = [];
+let portalCooldownUntil = 0;
+let powerUpgrades = loadPowerUpgrades();
+
+const powerUpgradeOptions = [
+  { id: "banana", name: "Bumeran", icon: "🍌" },
+  { id: "mandarina", name: "Mas gajos", icon: "🍊" },
+  { id: "manzana", name: "Mas semillas", icon: "🍎" },
+  { id: "uvas", name: "Mas bombas", icon: "🍇" },
+];
+
+function loadPowerUpgrades() {
+  try { return JSON.parse(window.localStorage.getItem("super-frutas-power-upgrades") || "{}"); } catch { return {}; }
+}
 
 const weatherModes = [
   { id: "calm", icon: "☀️", name: "Calma", wind: 0 },
@@ -163,6 +179,12 @@ function setLevelWeather(level) {
   ];
   stage.classList.remove(...worldClasses);
   stage.classList.add(worldClasses[Math.min(worldClasses.length - 1, Math.floor((level - 1) / 5))]);
+  if ((level - 1) % 5 === 0) {
+    const names = ["Bosque Frutal", "Montañas Ventosas", "Desierto Solar", "Fortaleza Brocoli", "Glaciar Crujiente", "Volcan Picante", "Huerta Espacial"];
+    worldIntro.textContent = names[Math.min(names.length - 1, Math.floor((level - 1) / 5))];
+    worldIntro.classList.remove("show");
+    requestAnimationFrame(() => worldIntro.classList.add("show"));
+  }
 }
 
 function loadStoredCostumes() {
@@ -363,6 +385,31 @@ function renderCostumeGrid() {
       setMessage(`Disfraz: ${costume.name}`);
     });
     costumeGrid.append(button);
+  });
+}
+
+function renderUpgradeGrid() {
+  upgradeGrid.replaceChildren();
+  powerUpgradeOptions.forEach((upgrade) => {
+    const level = Math.min(3, powerUpgrades[upgrade.id] || 0);
+    const price = (level + 1) * 100;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "upgrade-option";
+    button.disabled = level >= 3;
+    button.innerHTML = `<strong>${upgrade.icon} ${upgrade.name}</strong><span>Nivel ${level}/3</span><small>${level >= 3 ? "MAX" : `${price} monedas`}</small>`;
+    button.addEventListener("click", () => {
+      if (coins < price) {
+        setMessage(`Faltan ${price - coins} monedas`);
+        return;
+      }
+      addCoins(-price);
+      powerUpgrades[upgrade.id] = level + 1;
+      try { window.localStorage.setItem("super-frutas-power-upgrades", JSON.stringify(powerUpgrades)); } catch {}
+      renderUpgradeGrid();
+      setMessage(`¡${upgrade.name} mejorado!`);
+    });
+    upgradeGrid.append(button);
   });
 }
 
@@ -580,8 +627,18 @@ function makeVegetable(x, y, veggie, size = 25, options = {}) {
     health: maxHealth,
     maxHealth,
     lastDamageAt: 0,
+    shieldHits: options.shieldHits || 0,
   };
   vegetablesLeft += 1;
+  return registerLevelBody(body);
+}
+
+function makeChest(x, y) {
+  const body = Bodies.rectangle(x, y, scale(48), scale(38), {
+    label: "chest", density: preserveMassDensity(0.004), restitution: 0.18,
+    render: { visible: false },
+  });
+  body.game = { opened: false };
   return registerLevelBody(body);
 }
 
@@ -655,6 +712,9 @@ function makeCastle() {
   structureActivated = false;
   structureActivatedAt = 0;
   makeProgressiveCastle(currentLevel);
+  portals = currentLevel >= 6 && currentLevel % 3 === 0
+    ? [{ x: width * 0.43, y: height * 0.42 }, { x: width * 0.67, y: height * 0.25 }]
+    : [];
   makePlant();
 }
 
@@ -720,8 +780,13 @@ function makeProgressiveCastle(level) {
       ? easyTypes[index % easyTypes.length]
       : strongTypes[Math.min(strongTypes.length - 1, Math.floor((level - 1) / 3) + index) % strongTypes.length];
     const healthMultiplier = isEasy ? 0.38 + Math.min(level, 8) * 0.015 : 0.82 + Math.min(level, 12) * 0.09;
-    bodies.push(makeVegetable(slot.x + scale(row * 14), slot.y - scale(row * 8), veggie, isEasy ? 21 : 24, { healthMultiplier }));
+    bodies.push(makeVegetable(slot.x + scale(row * 14), slot.y - scale(row * 8), veggie, isEasy ? 21 : 24, {
+      healthMultiplier,
+      shieldHits: level >= 3 && index % 4 === 2 ? 1 : 0,
+    }));
   }
+
+  if (level >= 2 && level % 2 === 0) bodies.push(makeChest(startX, floorY - scale(205)));
 
   Composite.add(engine.world, bodies);
 }
@@ -769,6 +834,12 @@ function damageVegetable(body, energy, source = null) {
   const now = performance.now();
   if (now - body.game.lastDamageAt < 160) return;
   body.game.lastDamageAt = now;
+  if (body.game.shieldHits > 0) {
+    body.game.shieldHits -= 1;
+    addBreak(body.position.x, body.position.y, "#7de7ff", "✦");
+    setMessage("¡Escudo roto!");
+    return;
+  }
 
   let damage = energy / Math.max(0.65, body.game.toughness);
   if (body.game.size >= 29 && !["sandia", "dragon"].includes(source?.game?.id)) {
@@ -856,6 +927,22 @@ function breakBuildingBlock(body) {
   Composite.remove(engine.world, body);
   setScore(score + (isGlass ? 35 : 20));
   setMessage(isGlass ? "¡Cristal roto!" : "¡Madera rota!");
+}
+
+function openChest(body) {
+  if (!body || body.game.opened) return;
+  body.game.opened = true;
+  Composite.remove(engine.world, body);
+  const reward = 20 + Math.floor(Math.random() * 31);
+  addCoins(reward);
+  if (Math.random() < 0.12) {
+    lives += 1;
+    updateLives();
+    setMessage(`¡Cofre: ${reward} monedas y una vida!`);
+  } else {
+    setMessage(`¡Cofre: ${reward} monedas!`);
+  }
+  addBreak(body.position.x, body.position.y, "#ffd447", "★");
 }
 
 function explodeTnt(body) {
@@ -962,6 +1049,18 @@ function applySpecialFruitPhysics() {
         x: body.mass * Math.sin(stormPhase) * 0.00013,
         y: body.mass * Math.cos(stormPhase * 0.7) * 0.000035,
       });
+    }
+
+    if (portals.length === 2 && performance.now() > portalCooldownUntil) {
+      const entranceIndex = portals.findIndex((portal) => Vector.magnitude(Vector.sub(body.position, portal)) < scale(48));
+      if (entranceIndex >= 0) {
+        const exit = portals[1 - entranceIndex];
+        portalCooldownUntil = performance.now() + 900;
+        Body.setPosition(body, { x: exit.x + scale(48), y: exit.y });
+        Body.setVelocity(body, { x: Math.max(8, body.velocity.x), y: body.velocity.y - 1 });
+        addBreak(exit.x, exit.y, "#6df3ff", "✦");
+        setMessage("¡Portal frutal!");
+      }
     }
 
     const hasFallRescue = (body.game.id === "pera" && hasPearFallPower()) || body.game.id === "dragon";
@@ -1089,8 +1188,9 @@ function activatePower(fruitBody) {
       if (!isDragon) Composite.remove(engine.world, fruitBody);
       addBreak(x, y, isDragon ? "#f04f9b" : "#ffb02e", isDragon ? "✦" : "🍊");
 
-      for (let i = 0; i < 5; i += 1) {
-        const angle = -0.72 + i * 0.36;
+      const fragmentCount = 5 + (isDragon ? 3 : (powerUpgrades.mandarina || 0));
+      for (let i = 0; i < fragmentCount; i += 1) {
+        const angle = -0.72 + i * (1.44 / Math.max(1, fragmentCount - 1));
         const speed = 5.8 + Math.abs(base.x) * 0.38;
         const fragmentGame = isDragon
           ? { ...fruitBody.game, id: "dragonFragment", name: "Fragmento dragon", emoji: "🔥" }
@@ -1101,7 +1201,7 @@ function activatePower(fruitBody) {
         });
         Body.setAngularVelocity(gajo, (i - 2) * 0.18);
       }
-      setMessage(isDragon ? "¡Cinco fragmentos dragon!" : "¡Cinco gajos!");
+      setMessage(isDragon ? "¡Fragmentos dragon!" : `¡${fragmentCount} gajos!`);
     }, 420);
   }
 
@@ -1110,8 +1210,9 @@ function activatePower(fruitBody) {
       if (!Composite.get(engine.world, fruitBody.id, "body")) return;
       const base = { x: Math.max(6, fruitBody.velocity.x), y: fruitBody.velocity.y };
 
-      for (let i = 0; i < 6; i += 1) {
-        const spread = (i - 2.5) * 0.85;
+      const seedCount = 6 + (isDragon ? 4 : (powerUpgrades.manzana || 0) * 2);
+      for (let i = 0; i < seedCount; i += 1) {
+        const spread = (i - (seedCount - 1) / 2) * 0.7;
         const seed = makeSeed(fruitBody.position.x + 18, fruitBody.position.y + spread * 4, {
           x: base.x + 7 + i * 0.55,
           y: base.y * 0.2 + spread,
@@ -1145,8 +1246,9 @@ function activatePower(fruitBody) {
       addBreak(x, y, isDragon ? "#f04f9b" : "#9b5de5", isDragon ? "💥" : "🍇");
       const grapeGroup = Body.nextGroup(true);
 
-      for (let i = 0; i < 7; i += 1) {
-        const angle = -0.85 + i * 0.28;
+      const grapeCount = 7 + (isDragon ? 5 : (powerUpgrades.uvas || 0) * 2);
+      for (let i = 0; i < grapeCount; i += 1) {
+        const angle = -0.85 + i * (1.7 / Math.max(1, grapeCount - 1));
         const grape = makeFlyingFruit(x, y, { ...fruitBody.game, id: "dragonBomb", grapeBomb: true, emoji: "●" }, scale(11), {
           x: base.x * 1.05 + Math.cos(angle) * (5.5 + i * 0.18),
           y: base.y * 0.9 + Math.sin(angle) * 6,
@@ -1171,8 +1273,8 @@ function triggerBananaBoomerang() {
   if (!boomerangFruit) return;
   boomerangFruit.boomerangUsed = true;
   Body.setVelocity(boomerangFruit, {
-    x: -Math.max(12, Math.abs(boomerangFruit.velocity.x) * 1.2 + 3),
-    y: Math.min(-4, boomerangFruit.velocity.y - 5.5),
+    x: -Math.max(12, Math.abs(boomerangFruit.velocity.x) * (1.2 + (powerUpgrades.banana || 0) * 0.12) + 3),
+    y: Math.min(-4, boomerangFruit.velocity.y - 5.5 - (powerUpgrades.banana || 0)),
   });
   Body.setAngularVelocity(boomerangFruit, -0.9);
   addBreak(boomerangFruit.position.x, boomerangFruit.position.y, boomerangFruit.game.color, "↩");
@@ -1318,9 +1420,11 @@ function drawLabels() {
     if (body.label === "glassBlock") {
       drawGlassBlock(ctx, body);
     }
+    if (body.label === "chest") drawChest(ctx, body);
   });
 
   drawPlant(ctx);
+  drawPortals(ctx);
 
   if (currentFruit && !launched) {
     const guideSize = scale(92);
@@ -1336,6 +1440,36 @@ function drawLabels() {
   }
 
   ctx.restore();
+}
+
+function drawChest(ctx, body) {
+  ctx.save();
+  ctx.translate(body.position.x, body.position.y);
+  ctx.rotate(body.angle);
+  ctx.fillStyle = "#8b4f24";
+  ctx.strokeStyle = "#3e2416";
+  ctx.lineWidth = 3;
+  ctx.fillRect(-24, -16, 48, 32);
+  ctx.strokeRect(-24, -16, 48, 32);
+  ctx.fillStyle = "#ffd447";
+  ctx.fillRect(-4, -5, 8, 14);
+  ctx.fillRect(-24, -3, 48, 6);
+  ctx.restore();
+}
+
+function drawPortals(ctx) {
+  portals.forEach((portal, index) => {
+    ctx.save();
+    ctx.translate(portal.x, portal.y);
+    ctx.rotate((performance.now() / 700) * (index ? -1 : 1));
+    ctx.strokeStyle = index ? "#ff79d1" : "#6df3ff";
+    ctx.lineWidth = 8;
+    ctx.setLineDash([12, 8]);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 28, 58, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  });
 }
 
 function drawReplayTrail(ctx) {
@@ -1622,6 +1756,14 @@ function drawScaredVegetable(ctx, body) {
   const y = body.position.y;
   const faceScale = Math.max(0.55, radius / 27);
 
+  if (body.game.shieldHits > 0) {
+    ctx.strokeStyle = "rgba(125, 231, 255, 0.9)";
+    ctx.lineWidth = 5;
+    ctx.beginPath();
+    ctx.arc(x, y, radius * 1.28, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
   if (body.game.isKing) {
     ctx.font = `${Math.max(25, radius * 0.9)}px serif`;
     ctx.fillText("👑", x, y - radius - 12);
@@ -1752,11 +1894,12 @@ function setupCollisions() {
       const glassBlock = bodies.find((body) => body.label === "glassBlock");
       const steelBlock = bodies.find((body) => body.label === "steelBlock");
       const tnt = bodies.find((body) => body.label === "tnt");
+      const chest = bodies.find((body) => body.label === "chest");
       const speed = fruit ? Vector.magnitude(fruit.velocity) : Math.max(pair.bodyA.speed, pair.bodyB.speed);
       const hitSpeed = Math.max(pair.bodyA.speed, pair.bodyB.speed);
       const launchedFruit = fruit?.wasLaunched ? fruit : null;
       const projectile = launchedFruit || seed;
-      const structureBody = veggie || block || glassBlock || steelBlock || tnt;
+      const structureBody = veggie || block || glassBlock || steelBlock || tnt || chest;
 
       if (levelHasStarted && projectile && structureBody) {
         activateStructure(structureBody, { ...projectile.velocity });
@@ -1767,6 +1910,10 @@ function setupCollisions() {
       );
       if (launchedFruit?.game?.grapeBomb && grapeHitSurface && hitSpeed > 1.4) {
         explodeGrape(launchedFruit);
+        return;
+      }
+      if (chest && launchedFruit && speed > 2.2) {
+        openChest(chest);
         return;
       }
 
@@ -2113,6 +2260,7 @@ scoreForm.addEventListener("submit", async (event) => {
 gameOverDialog.addEventListener("cancel", (event) => event.preventDefault());
 costumeButton.addEventListener("click", () => {
   renderCostumeGrid();
+  renderUpgradeGrid();
   costumeDialog.showModal();
 });
 closeCostumeButton.addEventListener("click", () => costumeDialog.close());
@@ -2132,5 +2280,6 @@ window.addEventListener("resize", () => {
 
 updateLives();
 renderCostumeGrid();
+renderUpgradeGrid();
 coinsEl.textContent = String(coins);
 startGame();
