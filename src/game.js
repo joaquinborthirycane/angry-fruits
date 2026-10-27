@@ -37,7 +37,12 @@ const scoreEl = document.querySelector("#score");
 const levelEl = document.querySelector("#level");
 const livesEl = document.querySelector("#lives");
 const messageEl = document.querySelector("#message");
+const weatherIndicator = document.querySelector("#weatherIndicator");
 const resetButton = document.querySelector("#resetButton");
+const costumeButton = document.querySelector("#costumeButton");
+const costumeDialog = document.querySelector("#costumeDialog");
+const costumeGrid = document.querySelector("#costumeGrid");
+const closeCostumeButton = document.querySelector("#closeCostumeButton");
 const fruitCards = [...document.querySelectorAll(".fruit-card")];
 const gameOverDialog = document.querySelector("#gameOverDialog");
 const finalScoreEl = document.querySelector("#finalScore");
@@ -62,6 +67,16 @@ const fruits = [
     unlockScore: 5000,
   },
   { id: "uvas", name: "Uvas Bomba", emoji: "🍇", color: "#7b3fc5", radius: scale(29), density: 0.002, unlockScore: 10000 },
+  {
+    id: "dragon",
+    name: "Fruta del Dragon",
+    emoji: "🐉",
+    color: "#f04f9b",
+    radius: scale(38),
+    density: 0.0042,
+    restitution: 0.38,
+    unlockScore: 15000,
+  },
 ];
 
 const vegetables = [
@@ -70,6 +85,14 @@ const vegetables = [
   { name: "Berenjena", emoji: "🍆", color: "#7c4cc2", sizeScale: 1.08, density: 0.0028, toughness: 1.35 },
   { name: "Tomate", emoji: "🍅", color: "#ef3e36", sizeScale: 0.92, density: 0.0015, toughness: 0.75 },
   { name: "Maiz", emoji: "🌽", color: "#ffd447", sizeScale: 1.24, density: 0.0032, toughness: 1.5 },
+];
+
+const costumes = [
+  { id: "normal", name: "Sin gorrito", score: 0 },
+  { id: "party", name: "Fiesta", score: 2000 },
+  { id: "crown", name: "Corona", score: 6000 },
+  { id: "cape", name: "Superheroe", score: 10000 },
+  { id: "space", name: "Espacial", score: 15000 },
 ];
 
 let width = stage.clientWidth;
@@ -107,6 +130,39 @@ let plantNextBiteAt = 0;
 let structureActivated = false;
 let structureActivatedAt = 0;
 let gameOver = false;
+let currentWeather = { id: "calm", icon: "☀️", name: "Calma", wind: 0 };
+let unlockedCostumeIds = loadStoredCostumes();
+let selectedCostumeId = loadSelectedCostume();
+
+const weatherModes = [
+  { id: "calm", icon: "☀️", name: "Calma", wind: 0 },
+  { id: "windRight", icon: "💨", name: "Viento →", wind: 0.0001 },
+  { id: "rain", icon: "🌧️", name: "Lluvia", wind: 0.000025 },
+  { id: "windLeft", icon: "💨", name: "Viento ←", wind: -0.000085 },
+  { id: "storm", icon: "⛈️", name: "Tormenta", wind: 0 },
+];
+
+function setLevelWeather(level) {
+  currentWeather = weatherModes[(level - 1) % weatherModes.length];
+  weatherIndicator.textContent = `${currentWeather.icon} ${currentWeather.name}`;
+}
+
+function loadStoredCostumes() {
+  try {
+    const stored = JSON.parse(window.localStorage.getItem("super-frutas-costumes") || "[]");
+    return new Set(["normal", ...stored]);
+  } catch {
+    return new Set(["normal"]);
+  }
+}
+
+function loadSelectedCostume() {
+  try {
+    return window.localStorage.getItem("super-frutas-selected-costume") || "normal";
+  } catch {
+    return "normal";
+  }
+}
 
 function finishGame() {
   gameOver = true;
@@ -231,6 +287,51 @@ function setScore(nextScore) {
   score = nextScore;
   scoreEl.textContent = String(score);
   updateUnlocks();
+  updateCostumeUnlocks();
+}
+
+function updateCostumeUnlocks() {
+  costumes.forEach((costume) => {
+    if (score >= costume.score) unlockedCostumeIds.add(costume.id);
+  });
+  if (!unlockedCostumeIds.has(selectedCostumeId)) selectedCostumeId = "normal";
+  try {
+    window.localStorage.setItem("super-frutas-costumes", JSON.stringify([...unlockedCostumeIds]));
+  } catch {
+    // The game still works when browser storage is unavailable.
+  }
+  renderCostumeGrid();
+}
+
+function renderCostumeGrid() {
+  costumeGrid.replaceChildren();
+  costumes.forEach((costume) => {
+    const unlocked = unlockedCostumeIds.has(costume.id);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "costume-option";
+    button.classList.toggle("selected", selectedCostumeId === costume.id);
+    button.disabled = !unlocked;
+    const preview = document.createElement("strong");
+    preview.className = `hat-preview hat-${costume.id}`;
+    preview.setAttribute("aria-hidden", "true");
+    const name = document.createElement("span");
+    name.textContent = costume.name;
+    const status = document.createElement("small");
+    status.textContent = unlocked ? "Disponible" : `${costume.score} puntos`;
+    button.append(preview, name, status);
+    button.addEventListener("click", () => {
+      selectedCostumeId = costume.id;
+      try {
+        window.localStorage.setItem("super-frutas-selected-costume", selectedCostumeId);
+      } catch {
+        // Keep the selection for this session.
+      }
+      renderCostumeGrid();
+      setMessage(`Disfraz: ${costume.name}`);
+    });
+    costumeGrid.append(button);
+  });
 }
 
 function updateLives() {
@@ -671,7 +772,7 @@ function damageVegetable(body, energy, source = null) {
   body.game.lastDamageAt = now;
 
   let damage = energy / Math.max(0.65, body.game.toughness);
-  if (body.game.size >= 29 && source?.game?.id !== "sandia") {
+  if (body.game.size >= 29 && !["sandia", "dragon"].includes(source?.game?.id)) {
     damage = Math.min(damage, body.game.maxHealth * 0.48);
   }
   body.game.health = Math.max(0, body.game.health - damage);
@@ -846,10 +947,25 @@ function removeStoppedFruits() {
 }
 
 function applySpecialFruitPhysics() {
+  const stormPhase = performance.now() / 620;
   Composite.allBodies(engine.world).forEach((body) => {
     if (body.label !== "fruit" || !body.wasLaunched) return;
 
-    if (body.game.id === "pera" && hasPearFallPower() && body.position.y > height - 24) {
+    if (currentWeather.wind) {
+      Body.applyForce(body, body.position, { x: body.mass * currentWeather.wind, y: 0 });
+    }
+    if (currentWeather.id === "rain") {
+      Body.applyForce(body, body.position, { x: 0, y: body.mass * 0.000045 });
+    }
+    if (currentWeather.id === "storm") {
+      Body.applyForce(body, body.position, {
+        x: body.mass * Math.sin(stormPhase) * 0.00013,
+        y: body.mass * Math.cos(stormPhase * 0.7) * 0.000035,
+      });
+    }
+
+    const hasFallRescue = (body.game.id === "pera" && hasPearFallPower()) || body.game.id === "dragon";
+    if (hasFallRescue && body.position.y > height - 24) {
       Body.setPosition(body, {
         x: Math.max(getCatapultAnchor().x + 80, Math.min(width - 80, body.position.x)),
         y: height - 105,
@@ -908,6 +1024,7 @@ function finishLevel() {
   playLevelSound();
   addPowerTimer(() => {
     currentLevel = nextLevel;
+    setLevelWeather(currentLevel);
     levelEl.textContent = String(currentLevel);
     currentFruitIndex = 0;
     usedFruitIds = new Set();
@@ -937,8 +1054,9 @@ function finishLevel() {
 
 function activatePower(fruitBody) {
   if (!fruitBody || !fruitBody.game) return;
+  const isDragon = fruitBody.game.id === "dragon";
 
-  if (fruitBody.game.id === "pera") {
+  if (fruitBody.game.id === "pera" || isDragon) {
     addPowerTimer(() => {
       if (!Composite.get(engine.world, fruitBody.id, "body")) return;
       Body.setVelocity(fruitBody, {
@@ -947,38 +1065,41 @@ function activatePower(fruitBody) {
       });
       Body.setAngularVelocity(fruitBody, 0.42);
       addBreak(fruitBody.position.x, fruitBody.position.y, "#b7ef5d", "⚡");
-      setMessage("¡Pera turbo!");
+      setMessage(isDragon ? "¡Dragon turbo!" : "¡Pera turbo!");
     }, 220);
   }
 
-  if (fruitBody.game.id === "banana") {
+  if (fruitBody.game.id === "banana" || isDragon) {
     fruitBody.boomerangReadyAt = performance.now() + 260;
     fruitBody.boomerangUsed = false;
     setMessage("Haz click para activar el bumeran");
   }
 
-  if (fruitBody.game.id === "mandarina") {
+  if (fruitBody.game.id === "mandarina" || isDragon) {
     addPowerTimer(() => {
       if (!Composite.get(engine.world, fruitBody.id, "body")) return;
       const { x, y } = fruitBody.position;
       const base = { x: fruitBody.velocity.x, y: fruitBody.velocity.y };
-      Composite.remove(engine.world, fruitBody);
-      addBreak(x, y, "#ffb02e", "🍊");
+      if (!isDragon) Composite.remove(engine.world, fruitBody);
+      addBreak(x, y, isDragon ? "#f04f9b" : "#ffb02e", isDragon ? "✦" : "🍊");
 
       for (let i = 0; i < 5; i += 1) {
         const angle = -0.72 + i * 0.36;
         const speed = 5.8 + Math.abs(base.x) * 0.38;
-        const gajo = makeFlyingFruit(x, y, fruitBody.game, 13, {
+        const fragmentGame = isDragon
+          ? { ...fruitBody.game, id: "dragonFragment", name: "Fragmento dragon", emoji: "🔥" }
+          : fruitBody.game;
+        const gajo = makeFlyingFruit(x, y, fragmentGame, scale(13), {
           x: base.x * 0.72 + Math.cos(angle) * speed,
           y: base.y * 0.72 + Math.sin(angle) * speed,
         });
         Body.setAngularVelocity(gajo, (i - 2) * 0.18);
       }
-      setMessage("¡Cinco gajos!");
+      setMessage(isDragon ? "¡Cinco fragmentos dragon!" : "¡Cinco gajos!");
     }, 420);
   }
 
-  if (fruitBody.game.id === "manzana") {
+  if (fruitBody.game.id === "manzana" || isDragon) {
     addPowerTimer(() => {
       if (!Composite.get(engine.world, fruitBody.id, "body")) return;
       const base = { x: Math.max(6, fruitBody.velocity.x), y: fruitBody.velocity.y };
@@ -992,7 +1113,7 @@ function activatePower(fruitBody) {
         Body.setAngularVelocity(seed, 0.35 + i * 0.08);
       }
       addBreak(fruitBody.position.x, fruitBody.position.y, "#5c3422", "•");
-      setMessage("¡Lluvia de semillas!");
+      setMessage(isDragon ? "¡Semillas de dragon!" : "¡Lluvia de semillas!");
     }, 260);
   }
 
@@ -1005,7 +1126,7 @@ function activatePower(fruitBody) {
     setMessage("¡Sandia pesada!");
   }
 
-  if (fruitBody.game.id === "uvas") {
+  if (fruitBody.game.id === "uvas" || isDragon) {
     Body.setVelocity(fruitBody, {
       x: fruitBody.velocity.x * 1.24 + 1.8,
       y: fruitBody.velocity.y * 1.18 - 0.8,
@@ -1014,42 +1135,42 @@ function activatePower(fruitBody) {
       if (!Composite.get(engine.world, fruitBody.id, "body")) return;
       const { x, y } = fruitBody.position;
       const base = { x: fruitBody.velocity.x, y: fruitBody.velocity.y };
-      Composite.remove(engine.world, fruitBody);
-      addBreak(x, y, "#9b5de5", "🍇");
+      if (!isDragon) Composite.remove(engine.world, fruitBody);
+      addBreak(x, y, isDragon ? "#f04f9b" : "#9b5de5", isDragon ? "💥" : "🍇");
       const grapeGroup = Body.nextGroup(true);
 
       for (let i = 0; i < 7; i += 1) {
         const angle = -0.85 + i * 0.28;
-        const grape = makeFlyingFruit(x, y, { ...fruitBody.game, grapeBomb: true, emoji: "●" }, 11, {
+        const grape = makeFlyingFruit(x, y, { ...fruitBody.game, id: "dragonBomb", grapeBomb: true, emoji: "●" }, scale(11), {
           x: base.x * 1.05 + Math.cos(angle) * (5.5 + i * 0.18),
           y: base.y * 0.9 + Math.sin(angle) * 6,
         });
         grape.game.grapeBomb = true;
         grape.collisionFilter.group = grapeGroup;
       }
-      setMessage("¡Racimo bomba!");
-    }, 360);
+      setMessage(isDragon ? "¡Mini bombas dragon!" : "¡Racimo bomba!");
+    }, isDragon ? 680 : 360);
   }
 }
 
 function triggerBananaBoomerang() {
-  const banana = Composite.allBodies(engine.world).find(
+  const boomerangFruit = Composite.allBodies(engine.world).find(
     (body) =>
       body.label === "fruit" &&
       body.wasLaunched &&
-      body.game?.id === "banana" &&
+      ["banana", "dragon"].includes(body.game?.id) &&
       !body.boomerangUsed &&
       performance.now() >= (body.boomerangReadyAt || Infinity),
   );
-  if (!banana) return;
-  banana.boomerangUsed = true;
-  Body.setVelocity(banana, {
-    x: -Math.max(12, Math.abs(banana.velocity.x) * 1.2 + 3),
-    y: Math.min(-4, banana.velocity.y - 5.5),
+  if (!boomerangFruit) return;
+  boomerangFruit.boomerangUsed = true;
+  Body.setVelocity(boomerangFruit, {
+    x: -Math.max(12, Math.abs(boomerangFruit.velocity.x) * 1.2 + 3),
+    y: Math.min(-4, boomerangFruit.velocity.y - 5.5),
   });
-  Body.setAngularVelocity(banana, -0.9);
-  addBreak(banana.position.x, banana.position.y, "#fff06b", "↩");
-  setMessage("¡Banana bumeran!");
+  Body.setAngularVelocity(boomerangFruit, -0.9);
+  addBreak(boomerangFruit.position.x, boomerangFruit.position.y, boomerangFruit.game.color, "↩");
+  setMessage(boomerangFruit.game.id === "dragon" ? "¡Dragon bumeran!" : "¡Banana bumeran!");
 }
 
 function explodeGrape(body) {
@@ -1145,7 +1266,7 @@ function updateFruitTray() {
     card.classList.toggle("active", index === currentFruitIndex && !isUsed && !isLocked && !launched);
     card.classList.toggle("used", isUsed);
     card.classList.toggle("locked", isLocked);
-    card.classList.toggle("unlocked", ["sandia", "uvas"].includes(fruit.id) && !isLocked && !isUsed);
+    card.classList.toggle("unlocked", ["sandia", "uvas", "dragon"].includes(fruit.id) && !isLocked && !isUsed);
     card.classList.toggle("powered", fruit.id === "pera" && hasPearFallPower() && !isUsed);
     card.disabled = isLocked || isUsed || launched || levelChanging;
   });
@@ -1383,7 +1504,7 @@ function drawAngryFruit(ctx, body) {
   const y = body.position.y;
   const faceScale = Math.max(0.56, radius / 28);
 
-  if (body.game.id === "pera" && hasPearFallPower()) {
+  if ((body.game.id === "pera" && hasPearFallPower()) || body.game.id === "dragon") {
     ctx.save();
     const glow = ctx.createRadialGradient(x, y, radius * 0.45, x, y, radius * 1.35);
     glow.addColorStop(0, "rgba(130, 255, 225, 0.55)");
@@ -1395,6 +1516,8 @@ function drawAngryFruit(ctx, body) {
     ctx.fill();
     ctx.restore();
   }
+
+  drawCostumeBehind(ctx, x, y, radius, body.angle);
 
   ctx.font = `${Math.max(24, radius * 1.35)}px serif`;
   ctx.fillText(body.game.emoji, x, y + 1);
@@ -1423,6 +1546,71 @@ function drawAngryFruit(ctx, body) {
   ctx.moveTo(-8 * faceScale, 12 * faceScale);
   ctx.quadraticCurveTo(0, 6 * faceScale, 8 * faceScale, 12 * faceScale);
   ctx.stroke();
+  ctx.restore();
+  drawCostumeFront(ctx, x, y, radius, body.angle);
+}
+
+function drawCostumeBehind() {}
+
+function drawCostumeFront(ctx, x, y, radius, angle) {
+  if (selectedCostumeId === "normal") return;
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(angle * 0.25);
+  ctx.lineJoin = "round";
+  ctx.lineWidth = Math.max(2, radius * 0.09);
+  ctx.strokeStyle = "#3b2135";
+
+  if (selectedCostumeId === "party") {
+    ctx.fillStyle = "#ff4f85";
+    ctx.beginPath();
+    ctx.moveTo(-radius * 0.55, -radius * 0.75);
+    ctx.lineTo(radius * 0.2, -radius * 1.75);
+    ctx.lineTo(radius * 0.55, -radius * 0.72);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#ffd447";
+    ctx.beginPath();
+    ctx.arc(radius * 0.22, -radius * 1.78, radius * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (selectedCostumeId === "crown") {
+    ctx.fillStyle = "#ffd447";
+    ctx.beginPath();
+    ctx.moveTo(-radius * 0.7, -radius * 0.72);
+    ctx.lineTo(-radius * 0.62, -radius * 1.55);
+    ctx.lineTo(-radius * 0.2, -radius * 1.08);
+    ctx.lineTo(0, -radius * 1.65);
+    ctx.lineTo(radius * 0.25, -radius * 1.08);
+    ctx.lineTo(radius * 0.65, -radius * 1.55);
+    ctx.lineTo(radius * 0.7, -radius * 0.72);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  } else if (selectedCostumeId === "cape") {
+    ctx.fillStyle = "#e83f5b";
+    ctx.beginPath();
+    ctx.moveTo(-radius * 0.7, -radius * 0.72);
+    ctx.quadraticCurveTo(0, -radius * 1.65, radius * 0.7, -radius * 0.72);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#ffd447";
+    ctx.beginPath();
+    ctx.arc(0, -radius * 1.04, radius * 0.2, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (selectedCostumeId === "space") {
+    ctx.fillStyle = "#edf9ff";
+    ctx.beginPath();
+    ctx.arc(0, -radius * 1.02, radius * 0.72, Math.PI, 0);
+    ctx.lineTo(radius * 0.72, -radius * 0.68);
+    ctx.lineTo(-radius * 0.72, -radius * 0.68);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#56c7e8";
+    ctx.fillRect(-radius * 0.32, -radius * 1.62, radius * 0.64, radius * 0.22);
+  }
   ctx.restore();
 }
 
@@ -1586,12 +1774,12 @@ function setupCollisions() {
         return;
       }
 
-      if (steelBlock && launchedFruit && launchedFruit.game.id === "sandia" && speed > 3.2) {
+      if (steelBlock && launchedFruit && ["sandia", "dragon"].includes(launchedFruit.game.id) && speed > 3.2) {
         breakSteel(steelBlock);
         return;
       }
       if (steelBlock && (launchedFruit || seed)) {
-        setMessage("El acero solo se rompe con la sandia");
+        setMessage("El acero solo se rompe con la sandia o el dragon");
         return;
       }
 
@@ -1778,7 +1966,43 @@ function drawBackground() {
   ctx.beginPath();
   ctx.ellipse(width * 0.5, height + 35, width * 0.28, 70, 0, 0, Math.PI * 2);
   ctx.fill();
+  drawWeatherEffects(ctx);
   ctx.restore();
+}
+
+function drawWeatherEffects(ctx) {
+  const time = performance.now() / 18;
+  if (["windRight", "windLeft"].includes(currentWeather.id)) {
+    const direction = currentWeather.id === "windRight" ? 1 : -1;
+    ctx.strokeStyle = "rgba(220, 247, 255, 0.42)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < 18; i += 1) {
+      const x = ((i * 137 + time * direction * 2.4) % (width + 180)) - 90;
+      const y = 70 + ((i * 83) % Math.max(120, height - 150));
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + direction * (34 + (i % 4) * 9), y - 3);
+      ctx.stroke();
+    }
+  }
+
+  if (["rain", "storm"].includes(currentWeather.id)) {
+    ctx.strokeStyle = currentWeather.id === "storm" ? "rgba(184, 220, 255, 0.62)" : "rgba(190, 232, 255, 0.48)";
+    ctx.lineWidth = 2;
+    const drops = currentWeather.id === "storm" ? 70 : 42;
+    for (let i = 0; i < drops; i += 1) {
+      const x = (i * 97 + time * 3.5) % (width + 80) - 40;
+      const y = (i * 61 + time * 5.2) % height;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - 8, y + 18);
+      ctx.stroke();
+    }
+    if (currentWeather.id === "storm" && Math.sin(performance.now() / 430) > 0.96) {
+      ctx.fillStyle = "rgba(230, 241, 255, 0.16)";
+      ctx.fillRect(0, 0, width, height * 0.62);
+    }
+  }
 }
 
 function startGame({ preserveScore = false } = {}) {
@@ -1804,6 +2028,7 @@ function startGame({ preserveScore = false } = {}) {
   });
   runner = Runner.create();
   currentLevel = 1;
+  setLevelWeather(currentLevel);
   levelEl.textContent = "1";
   levelChanging = false;
   currentFruitIndex = 0;
@@ -1876,6 +2101,11 @@ scoreForm.addEventListener("submit", async (event) => {
   }
 });
 gameOverDialog.addEventListener("cancel", (event) => event.preventDefault());
+costumeButton.addEventListener("click", () => {
+  renderCostumeGrid();
+  costumeDialog.showModal();
+});
+closeCostumeButton.addEventListener("click", () => costumeDialog.close());
 fruitCards.forEach((card, index) => {
   card.addEventListener("click", () => chooseFruit(index));
 });
@@ -1886,4 +2116,5 @@ window.addEventListener("resize", () => {
 });
 
 updateLives();
+renderCostumeGrid();
 startGame();

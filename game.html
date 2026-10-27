@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20261018-12" />
+    <link rel="stylesheet" href="styles.css?v=20261018-15" />
   </head>
   <body>
     <main class="game-shell">
@@ -35,11 +35,13 @@
           <strong id="lives">♥♥♥</strong>
         </div>
         <button id="resetButton" class="reset-button" type="button">Reiniciar</button>
+        <button id="costumeButton" class="costume-button" type="button" title="Abrir gorritos" aria-label="Abrir gorritos"><span class="mini-hat" aria-hidden="true"></span></button>
       </section>
 
       <section class="stage-wrap" aria-label="Escenario de Super Frutas al Rescate">
         <canvas id="gameCanvas"></canvas>
         <div id="message" class="message">Elige una fruta</div>
+        <div id="weatherIndicator" class="weather-indicator" aria-live="polite">☀️ Calma</div>
       </section>
 
       <section class="fruit-tray" aria-label="Frutas disponibles">
@@ -49,8 +51,18 @@
         <button class="fruit-card" data-fruit="pera" type="button">🍐 <span>Pera</span></button>
         <button class="fruit-card locked" data-fruit="sandia" type="button">🔒 <span>Sandia</span></button>
         <button class="fruit-card locked" data-fruit="uvas" type="button">🔒 <span>Uvas</span></button>
+        <button class="fruit-card locked" data-fruit="dragon" type="button">🔒 <span>Dragon</span></button>
       </section>
     </main>
+
+    <dialog id="costumeDialog" class="costume-dialog">
+      <div class="costume-content">
+        <p class="dialog-kicker">Armario frutal</p>
+        <h2>Gorritos</h2>
+        <div id="costumeGrid" class="costume-grid"></div>
+        <button id="closeCostumeButton" class="close-costume-button" type="button">Cerrar</button>
+      </div>
+    </dialog>
 
     <dialog id="gameOverDialog" class="game-over-dialog">
       <div class="game-over-content">
@@ -76,6 +88,6 @@
     </dialog>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
-    <script type="module" src="src/game.js?v=20261018-17"></script>
+    <script type="module" src="src/game.js?v=20261027-21"></script>
   </body>
 </html>
