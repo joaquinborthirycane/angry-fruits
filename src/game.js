@@ -1326,41 +1326,42 @@ function drawCatapult(ctx) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  const upperTip = { x: anchor.x + scale(82), y: anchor.y - scale(62) };
-  const lowerTip = { x: anchor.x + scale(82), y: anchor.y + scale(62) };
-  const forkBackX = anchor.x - scale(42);
+  const leftTip = { x: anchor.x - scale(58), y: anchor.y - scale(68) };
+  const rightTip = { x: anchor.x + scale(58), y: anchor.y - scale(68) };
+  const forkBottomY = anchor.y + scale(48);
 
-  // A sideways U leaves a clear launch corridor between its long arms.
+  // The upright U is visual only; it never participates in physics collisions.
   ctx.strokeStyle = "#7f4d2d";
   ctx.lineWidth = scale(12);
   ctx.beginPath();
-  ctx.moveTo(upperTip.x, upperTip.y);
-  ctx.lineTo(forkBackX, upperTip.y);
-  ctx.quadraticCurveTo(forkBackX - scale(20), anchor.y, forkBackX, lowerTip.y);
-  ctx.lineTo(lowerTip.x, lowerTip.y);
+  ctx.moveTo(leftTip.x, leftTip.y);
+  ctx.lineTo(leftTip.x, anchor.y + scale(20));
+  ctx.quadraticCurveTo(leftTip.x, forkBottomY, anchor.x, forkBottomY);
+  ctx.quadraticCurveTo(rightTip.x, forkBottomY, rightTip.x, anchor.y + scale(20));
+  ctx.lineTo(rightTip.x, rightTip.y);
   ctx.stroke();
 
   ctx.strokeStyle = "#58351f";
   ctx.lineWidth = scale(13);
   ctx.beginPath();
-  ctx.moveTo(forkBackX, anchor.y + scale(15));
-  ctx.lineTo(forkBackX, anchor.y + CATAPULT_HEIGHT);
+  ctx.moveTo(anchor.x, forkBottomY);
+  ctx.lineTo(anchor.x, anchor.y + CATAPULT_HEIGHT);
   ctx.stroke();
 
   ctx.strokeStyle = "#99613a";
   ctx.lineWidth = scale(10);
   ctx.beginPath();
-  ctx.moveTo(forkBackX - scale(25), anchor.y + CATAPULT_HEIGHT + scale(4));
-  ctx.lineTo(forkBackX + scale(25), anchor.y + CATAPULT_HEIGHT + scale(4));
+  ctx.moveTo(anchor.x - scale(25), anchor.y + CATAPULT_HEIGHT + scale(4));
+  ctx.lineTo(anchor.x + scale(25), anchor.y + CATAPULT_HEIGHT + scale(4));
   ctx.stroke();
 
   if (currentFruit && !launched) {
     ctx.strokeStyle = "#362018";
     ctx.lineWidth = scale(5);
     ctx.beginPath();
-    ctx.moveTo(upperTip.x, upperTip.y);
+    ctx.moveTo(leftTip.x, leftTip.y);
     ctx.lineTo(currentFruit.position.x, currentFruit.position.y);
-    ctx.lineTo(lowerTip.x, lowerTip.y);
+    ctx.lineTo(rightTip.x, rightTip.y);
     ctx.stroke();
   }
 
