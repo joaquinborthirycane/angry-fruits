@@ -152,6 +152,17 @@ function setLevelWeather(level) {
   currentWeather = weatherModes[(level - 1) % weatherModes.length];
   weatherIndicator.textContent = `${currentWeather.icon} ${currentWeather.name}`;
   weatherLayer.className = `weather-layer weather-${currentWeather.id}`;
+  const worldClasses = [
+    "world-forest",
+    "world-wind",
+    "world-desert",
+    "world-fortress",
+    "world-ice",
+    "world-volcano",
+    "world-space",
+  ];
+  stage.classList.remove(...worldClasses);
+  stage.classList.add(worldClasses[Math.min(worldClasses.length - 1, Math.floor((level - 1) / 5))]);
 }
 
 function loadStoredCostumes() {

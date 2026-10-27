@@ -240,15 +240,230 @@ p {
   box-shadow: 0 15px 34px var(--shadow);
 }
 
+.stage-wrap.world-forest {
+  background:
+    radial-gradient(circle at 12% 13%, #ffd447 0 46px, rgba(255, 112, 47, 0.72) 48px, transparent 82px),
+    linear-gradient(155deg, rgba(24, 70, 52, 0.58) 0 32%, transparent 33%),
+    radial-gradient(ellipse at 50% 108%, rgba(112, 205, 82, 0.42), transparent 42%),
+    linear-gradient(#326c57 0%, #79ba70 47%, #d9d26a 58%, #403139 59%, #17111a);
+}
+
+.stage-wrap.world-wind {
+  background:
+    radial-gradient(circle at 12% 13%, #fff0a0 0 42px, rgba(255, 255, 255, 0.34) 44px, transparent 78px),
+    linear-gradient(150deg, rgba(37, 95, 123, 0.52) 0 30%, transparent 31%),
+    radial-gradient(ellipse at 50% 108%, rgba(196, 238, 244, 0.48), transparent 43%),
+    linear-gradient(#397d9a 0%, #83c9dc 47%, #d6eef1 58%, #48545b 59%, #17232b);
+}
+
+.stage-wrap.world-storm {
+  background:
+    radial-gradient(circle at 15% 12%, rgba(211, 222, 255, 0.32) 0 38px, transparent 72px),
+    linear-gradient(145deg, rgba(18, 18, 50, 0.72) 0 36%, transparent 37%),
+    radial-gradient(ellipse at 50% 108%, rgba(133, 99, 164, 0.45), transparent 42%),
+    linear-gradient(#25244f 0%, #574475 45%, #87638d 58%, #30243d 59%, #100c18);
+}
+
+.stage-wrap.world-fortress {
+  background:
+    radial-gradient(circle at 12% 13%, #ffb238 0 44px, rgba(210, 45, 35, 0.52) 46px, transparent 82px),
+    linear-gradient(150deg, rgba(57, 29, 38, 0.72) 0 35%, transparent 36%),
+    radial-gradient(ellipse at 50% 108%, rgba(232, 67, 42, 0.42), transparent 42%),
+    linear-gradient(#492837 0%, #963b3f 44%, #d86143 58%, #3b2528 59%, #130c10);
+}
+
 #gameCanvas {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 99vw;
   height: 100%;
 }
 
+.world-scenery {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.world-scenery::before,
+.world-scenery::after {
+  position: absolute;
+  content: "";
+}
+
+.world-forest .world-scenery::before {
+  right: 0;
+  bottom: 38%;
+  left: 0;
+  height: 34%;
+  background:
+    radial-gradient(circle at 5% 48%, #286946 0 42px, transparent 44px),
+    radial-gradient(circle at 14% 32%, #348558 0 55px, transparent 57px),
+    radial-gradient(circle at 25% 55%, #245e40 0 48px, transparent 50px),
+    radial-gradient(circle at 38% 28%, #3b8e59 0 62px, transparent 64px),
+    radial-gradient(circle at 52% 51%, #276b43 0 52px, transparent 54px),
+    radial-gradient(circle at 67% 30%, #3f925b 0 64px, transparent 66px),
+    radial-gradient(circle at 81% 53%, #26643f 0 54px, transparent 56px),
+    radial-gradient(circle at 94% 33%, #398653 0 60px, transparent 62px);
+}
+
+.world-forest .world-scenery::after {
+  right: 0;
+  bottom: 35%;
+  left: 0;
+  height: 24%;
+  opacity: 0.75;
+  background: repeating-linear-gradient(90deg, transparent 0 72px, #493522 73px 88px, transparent 89px 142px);
+}
+
+.world-wind .world-scenery::before {
+  right: -4%;
+  bottom: 34%;
+  left: -4%;
+  height: 48%;
+  background: #537c8f;
+  clip-path: polygon(0 100%, 0 78%, 10% 42%, 18% 72%, 31% 12%, 43% 70%, 56% 30%, 65% 68%, 78% 7%, 90% 70%, 100% 36%, 100% 100%);
+}
+
+.world-wind .world-scenery::after {
+  right: -4%;
+  bottom: 43%;
+  left: -4%;
+  height: 38%;
+  background: #eff8fa;
+  clip-path: polygon(7% 53%, 10% 42%, 13% 51%, 27% 28%, 31% 12%, 35% 31%, 52% 43%, 56% 30%, 60% 45%, 74% 24%, 78% 7%, 82% 28%, 96% 52%, 100% 36%, 100% 47%, 90% 70%, 78% 31%, 65% 68%, 56% 48%, 43% 70%, 31% 34%, 18% 72%, 10% 56%);
+}
+
+.stage-wrap.world-desert {
+  background:
+    radial-gradient(circle at 15% 15%, #fff19a 0 48px, rgba(255, 170, 40, 0.36) 50px, transparent 88px),
+    linear-gradient(#e77b43 0%, #f5b65a 52%, #d9913e 58%, #4b3029 59%, #170f13);
+}
+
+.world-desert .world-scenery::before {
+  right: -10%;
+  bottom: 34%;
+  left: -10%;
+  height: 30%;
+  border-radius: 50% 50% 0 0;
+  background: #e8a54c;
+  box-shadow: 380px -28px 0 18px #d98c3e, 850px 5px 0 35px #f0b85b;
+  transform: rotate(-2deg);
+}
+
+.world-desert .world-scenery::after {
+  right: 12%;
+  bottom: 47%;
+  width: 24px;
+  height: 105px;
+  border-radius: 12px 12px 4px 4px;
+  background: #2d7d4b;
+  box-shadow: -420px 36px 0 -3px #347f4e, -760px -5px 0 2px #256d42;
+}
+
+.world-fortress .world-scenery::before {
+  right: 7%;
+  bottom: 38%;
+  width: 48%;
+  height: 42%;
+  border: 7px solid #32262b;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 34px, rgba(48, 35, 39, 0.32) 35px 39px),
+    repeating-linear-gradient(90deg, #78666a 0 66px, #604f54 67px 72px);
+  clip-path: polygon(0 18%, 8% 18%, 8% 0, 18% 0, 18% 18%, 41% 18%, 41% 0, 53% 0, 53% 18%, 78% 18%, 78% 0, 90% 0, 90% 18%, 100% 18%, 100% 100%, 0 100%);
+}
+
+.world-fortress .world-scenery::after {
+  right: 25%;
+  bottom: 38%;
+  width: 74px;
+  height: 125px;
+  border-radius: 38px 38px 0 0;
+  background: #21191d;
+}
+
+.stage-wrap.world-ice {
+  background: linear-gradient(#83cfe8 0%, #dff8ff 54%, #b7e8f2 58%, #31434d 59%, #101820);
+}
+
+.world-ice .world-scenery::before {
+  right: -4%;
+  bottom: 35%;
+  left: -4%;
+  height: 43%;
+  background: #bdebf5;
+  clip-path: polygon(0 100%, 0 72%, 12% 28%, 22% 70%, 36% 8%, 49% 73%, 62% 24%, 73% 68%, 88% 3%, 100% 70%, 100% 100%);
+}
+
+.world-ice .world-scenery::after {
+  right: 0;
+  bottom: 34%;
+  left: 0;
+  height: 17%;
+  background: repeating-linear-gradient(110deg, #eefcff 0 65px, #a9deea 66px 72px, #d8f6fb 73px 130px);
+  clip-path: polygon(0 35%, 8% 12%, 18% 42%, 30% 4%, 43% 38%, 56% 8%, 70% 45%, 84% 5%, 100% 32%, 100% 100%, 0 100%);
+}
+
+.stage-wrap.world-volcano {
+  background:
+    radial-gradient(circle at 18% 14%, #ffcf3f 0 38px, rgba(255, 64, 35, 0.45) 40px, transparent 78px),
+    linear-gradient(#642f3d 0%, #ca493d 48%, #ef7138 58%, #3a2225 59%, #10090b);
+}
+
+.world-volcano .world-scenery::before {
+  right: 4%;
+  bottom: 34%;
+  width: 58%;
+  height: 58%;
+  background: #463038;
+  clip-path: polygon(0 100%, 18% 72%, 40% 42%, 47% 10%, 57% 10%, 64% 43%, 100% 100%);
+}
+
+.world-volcano .world-scenery::after {
+  right: 25%;
+  bottom: 34%;
+  width: 18%;
+  height: 50%;
+  background: linear-gradient(90deg, transparent 0 30%, #ffca3a 31% 48%, #ff5938 49% 67%, transparent 68%);
+  clip-path: polygon(42% 0, 64% 0, 58% 28%, 78% 52%, 64% 100%, 26% 100%, 40% 54%, 29% 28%);
+}
+
+.stage-wrap.world-space {
+  background:
+    radial-gradient(circle at 14% 18%, #c9e7ff 0 34px, #6b78c8 36px, transparent 62px),
+    radial-gradient(circle at 72% 22%, #ffd36b 0 18px, transparent 21px),
+    radial-gradient(circle at 43% 12%, #ffffff 0 2px, transparent 3px),
+    radial-gradient(circle at 87% 34%, #ffffff 0 2px, transparent 3px),
+    radial-gradient(circle at 28% 39%, #ffffff 0 2px, transparent 3px),
+    linear-gradient(#111536 0%, #28244f 58%, #19162c 59%, #080811);
+}
+
+.world-space .world-scenery::before {
+  right: 5%;
+  bottom: 42%;
+  width: 170px;
+  height: 70px;
+  border: 12px solid rgba(244, 177, 83, 0.72);
+  border-radius: 50%;
+  transform: rotate(-16deg);
+}
+
+.world-space .world-scenery::after {
+  right: 9%;
+  bottom: 39%;
+  width: 105px;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: #b46bd0;
+  box-shadow: inset -18px -10px rgba(56, 38, 91, 0.4);
+}
+
 .weather-layer {
   position: absolute;
-  z-index: 1;
+  z-index: 2;
   inset: 0;
   overflow: hidden;
   pointer-events: none;
@@ -384,7 +599,7 @@ p {
 
 .message {
   position: absolute;
-  z-index: 2;
+  z-index: 3;
   top: 14px;
   left: 50%;
   min-width: 220px;
@@ -404,7 +619,7 @@ p {
 
 .weather-indicator {
   position: absolute;
-  z-index: 2;
+  z-index: 3;
   top: 14px;
   right: 18px;
   min-width: 118px;
@@ -842,8 +1057,11 @@ p {
 
 .world-forest .world-icon { background: #288a57; }
 .world-wind .world-icon { background: #4d9fc5; }
-.world-storm .world-icon { background: #564584; }
+.world-desert .world-icon { background: #c97839; }
 .world-castle .world-icon { background: #9b493e; }
+.world-ice .world-icon { background: #69bbd4; }
+.world-volcano .world-icon { background: #c84435; }
+.world-space .world-icon { background: #51448c; }
 
 .world-stop strong,
 .world-stop small {
