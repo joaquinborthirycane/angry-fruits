@@ -464,12 +464,14 @@ function makeCatapult() {
     isStatic: true,
     isSensor: true,
     label: "catapult",
+    collisionFilter: { category: WORLD_CATEGORY, mask: 0 },
     render: { visible: false },
   });
   const foot = Bodies.rectangle(anchor.x, anchor.y + CATAPULT_HEIGHT, scale(72), scale(14), {
     isStatic: true,
     isSensor: true,
     label: "catapult",
+    collisionFilter: { category: WORLD_CATEGORY, mask: 0 },
     render: { visible: false },
   });
   catapultParts = [post, foot];
@@ -1289,6 +1291,9 @@ function drawLabels() {
   ctx.textBaseline = "middle";
   ctx.font = "34px serif";
 
+  // The fork stays behind the projectile so the launch channel remains visibly open.
+  drawCatapult(ctx);
+
   Composite.allBodies(engine.world).forEach((body) => {
     if (body.label === "fruit" && body.game) {
       drawAngryFruit(ctx, body);
@@ -1326,8 +1331,6 @@ function drawLabels() {
     ctx.setLineDash([]);
   }
 
-  drawCatapult(ctx);
-
   ctx.restore();
 }
 
@@ -1339,11 +1342,24 @@ function drawCatapult(ctx) {
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
+  const leftTip = { x: anchor.x - scale(34), y: anchor.y + scale(42) };
+  const rightTip = { x: anchor.x + scale(34), y: anchor.y + scale(42) };
+  const forkJoint = { x: anchor.x, y: anchor.y + scale(68) };
+
   ctx.strokeStyle = "#58351f";
-  ctx.lineWidth = scale(12);
+  ctx.lineWidth = scale(13);
   ctx.beginPath();
-  ctx.moveTo(anchor.x, anchor.y + scale(18));
+  ctx.moveTo(forkJoint.x, forkJoint.y);
   ctx.lineTo(anchor.x, anchor.y + CATAPULT_HEIGHT);
+  ctx.stroke();
+
+  ctx.strokeStyle = "#7f4d2d";
+  ctx.lineWidth = scale(11);
+  ctx.beginPath();
+  ctx.moveTo(forkJoint.x, forkJoint.y);
+  ctx.lineTo(leftTip.x, leftTip.y);
+  ctx.moveTo(forkJoint.x, forkJoint.y);
+  ctx.lineTo(rightTip.x, rightTip.y);
   ctx.stroke();
 
   ctx.strokeStyle = "#99613a";
@@ -1353,21 +1369,13 @@ function drawCatapult(ctx) {
   ctx.lineTo(anchor.x + scale(25), anchor.y + CATAPULT_HEIGHT + scale(4));
   ctx.stroke();
 
-  ctx.strokeStyle = "#45291d";
-  ctx.lineWidth = scale(6);
-  ctx.beginPath();
-  ctx.moveTo(anchor.x - scale(18), anchor.y + scale(22));
-  ctx.lineTo(anchor.x, anchor.y);
-  ctx.lineTo(anchor.x + scale(18), anchor.y + scale(22));
-  ctx.stroke();
-
   if (currentFruit && !launched) {
     ctx.strokeStyle = "#362018";
     ctx.lineWidth = scale(5);
     ctx.beginPath();
-    ctx.moveTo(anchor.x - scale(18), anchor.y + scale(22));
+    ctx.moveTo(leftTip.x, leftTip.y);
     ctx.lineTo(currentFruit.position.x, currentFruit.position.y);
-    ctx.lineTo(anchor.x + scale(18), anchor.y + scale(22));
+    ctx.lineTo(rightTip.x, rightTip.y);
     ctx.stroke();
   }
 
