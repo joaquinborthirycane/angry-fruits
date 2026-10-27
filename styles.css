@@ -32,7 +32,7 @@ body {
 
 .top-bar {
   display: grid;
-  grid-template-columns: 1fr auto auto auto auto auto;
+  grid-template-columns: 1fr repeat(7, auto);
   align-items: center;
   gap: 14px;
   margin: 0 24px 12px;
@@ -135,6 +135,36 @@ p {
   white-space: nowrap;
 }
 
+.coin-board {
+  min-width: 82px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  color: #3d2a12;
+  text-align: center;
+  background: #ffd447;
+  box-shadow: inset 0 -4px rgba(128, 76, 0, 0.18);
+}
+
+.coin-board span,
+.coin-board strong { display: block; font-weight: 800; }
+.coin-board span { font-size: 0.72rem; text-transform: uppercase; }
+.coin-board strong { font-size: 1.35rem; line-height: 1; }
+
+.replay-button {
+  min-height: 48px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 8px;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 800;
+  background: #327bbd;
+  box-shadow: 0 5px 0 #215384;
+  cursor: pointer;
+}
+
+.replay-button:disabled { opacity: 0.45; cursor: not-allowed; }
+
 .reset-button {
   min-height: 48px;
   padding: 0 18px;
@@ -216,8 +246,145 @@ p {
   height: 100%;
 }
 
+.weather-layer {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.weather-layer::before,
+.weather-layer::after {
+  position: absolute;
+  content: "";
+}
+
+.weather-calm {
+  display: none;
+}
+
+.weather-windRight::before,
+.weather-windLeft::before {
+  inset: 5% -22%;
+  opacity: 0.72;
+  background:
+    repeating-linear-gradient(0deg, transparent 0 42px, rgba(229, 250, 255, 0.7) 44px 47px, transparent 49px 83px);
+  filter: drop-shadow(0 0 4px rgba(210, 247, 255, 0.65));
+  animation: wind-right 1.25s linear infinite;
+  transform: skewX(-18deg);
+}
+
+.weather-windLeft::before {
+  animation-name: wind-left;
+  transform: skewX(18deg);
+}
+
+.weather-windRight::after,
+.weather-windLeft::after {
+  top: 20%;
+  left: -12%;
+  width: 19px;
+  height: 11px;
+  border-radius: 100% 0 100% 0;
+  background: #e8b93f;
+  box-shadow:
+    190px 125px #dc6c36,
+    410px 36px #f0d75a,
+    650px 210px #c95e39,
+    890px 92px #efd64b,
+    1110px 260px #dc6c36,
+    1320px 42px #f0d75a;
+  animation: leaves-right 2.2s linear infinite;
+}
+
+.weather-windLeft::after {
+  right: -12%;
+  left: auto;
+  animation-name: leaves-left;
+}
+
+.weather-rain {
+  background: rgba(24, 47, 72, 0.16);
+}
+
+.weather-rain::before,
+.weather-storm::before {
+  inset: -35% -12%;
+  background: repeating-linear-gradient(108deg, transparent 0 25px, rgba(190, 232, 255, 0.72) 27px 30px, transparent 32px 55px);
+  animation: falling-rain 0.55s linear infinite;
+}
+
+.weather-rain::after {
+  top: -42px;
+  left: 7%;
+  width: 280px;
+  height: 82px;
+  border-radius: 50%;
+  background: rgba(70, 80, 105, 0.62);
+  box-shadow: 360px 28px rgba(59, 73, 99, 0.58), 760px -5px rgba(65, 76, 102, 0.6), 1120px 22px rgba(56, 69, 94, 0.58);
+}
+
+.weather-storm {
+  background: rgba(12, 18, 42, 0.3);
+  animation: storm-flash 4.2s steps(1) infinite;
+}
+
+.weather-storm::before {
+  opacity: 0.9;
+  animation-duration: 0.35s;
+}
+
+.weather-storm::after {
+  top: 8%;
+  left: 60%;
+  width: 65px;
+  height: 180px;
+  background: #fff5a8;
+  clip-path: polygon(52% 0, 100% 0, 66% 38%, 96% 38%, 18% 100%, 39% 56%, 5% 56%);
+  filter: drop-shadow(0 0 14px #e9f4ff);
+  opacity: 0;
+  animation: lightning 4.2s steps(1) infinite;
+}
+
+@keyframes wind-right {
+  from { transform: translateX(-9%) skewX(-18deg); }
+  to { transform: translateX(9%) skewX(-18deg); }
+}
+
+@keyframes wind-left {
+  from { transform: translateX(9%) skewX(18deg); }
+  to { transform: translateX(-9%) skewX(18deg); }
+}
+
+@keyframes leaves-right {
+  from { transform: translateX(-80px) rotate(0); }
+  to { transform: translateX(calc(100vw + 180px)) rotate(720deg); }
+}
+
+@keyframes leaves-left {
+  from { transform: translateX(80px) rotate(0); }
+  to { transform: translateX(calc(-100vw - 180px)) rotate(-720deg); }
+}
+
+@keyframes falling-rain {
+  from { transform: translate(0, -80px); }
+  to { transform: translate(-35px, 80px); }
+}
+
+@keyframes storm-flash {
+  0%, 88%, 92%, 100% { background: rgba(12, 18, 42, 0.3); }
+  89%, 91% { background: rgba(215, 231, 255, 0.28); }
+}
+
+@keyframes lightning {
+  0%, 88%, 92%, 100% { opacity: 0; }
+  89%, 91% { opacity: 0.95; }
+}
+
 .message {
   position: absolute;
+  z-index: 2;
   top: 14px;
   left: 50%;
   min-width: 220px;
@@ -237,6 +404,7 @@ p {
 
 .weather-indicator {
   position: absolute;
+  z-index: 2;
   top: 14px;
   right: 18px;
   min-width: 118px;
@@ -317,14 +485,14 @@ p {
 }
 
 .start-page {
-  overflow: hidden;
+  overflow-x: hidden;
   background: #1b101d;
 }
 
 .start-screen {
   position: relative;
   isolation: isolate;
-  min-height: 100vh;
+  min-height: 92vh;
   overflow: hidden;
   background:
     linear-gradient(148deg, rgba(33, 19, 48, 0.82) 0 33%, transparent 34%),
@@ -421,6 +589,28 @@ p {
 .play-button:active {
   transform: translateY(6px);
   box-shadow: 0 2px 0 #922b32;
+}
+
+.start-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+
+.map-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 150px;
+  min-height: 68px;
+  border: 4px solid #bcecff;
+  border-radius: 8px;
+  color: #ffffff;
+  font-size: 1.55rem;
+  font-weight: 800;
+  text-decoration: none;
+  background: #327bbd;
+  box-shadow: 0 8px 0 #204b78;
 }
 
 .start-fruits {
@@ -534,6 +724,145 @@ p {
   background: #21171a;
   content: "";
   transform: translateX(-50%);
+}
+
+.world-map {
+  position: relative;
+  z-index: 5;
+  padding: 38px clamp(22px, 6vw, 90px) 54px;
+  color: #ffffff;
+  background: #17101d;
+  border-top: 8px solid #ef4d3f;
+}
+
+.world-map-heading {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  width: min(1180px, 100%);
+  margin: 0 auto 28px;
+}
+
+.world-map-heading p {
+  grid-column: 1;
+  margin: 0;
+  color: #ffd447;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.world-map-heading h2 {
+  grid-column: 1;
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3.4rem);
+  line-height: 1;
+}
+
+.world-map-heading span {
+  grid-column: 2;
+  grid-row: 1 / 3;
+  padding: 8px 14px;
+  border: 2px solid #ffd447;
+  border-radius: 6px;
+  color: #ffd447;
+  font-weight: 800;
+}
+
+.world-path {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(16px, 3vw, 38px);
+  width: min(1180px, 100%);
+  margin: 0 auto;
+}
+
+.world-path::before {
+  position: absolute;
+  top: 51px;
+  right: 8%;
+  left: 8%;
+  height: 8px;
+  border: 3px solid #4a3b51;
+  border-radius: 6px;
+  background: repeating-linear-gradient(90deg, #75617d 0 24px, #49394f 24px 38px);
+  content: "";
+}
+
+.world-stop {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  padding: 16px 10px 14px;
+  border: 3px solid #5f5363;
+  border-radius: 8px;
+  color: #aaa0ac;
+  text-align: center;
+  background: #2a222d;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.28);
+  filter: grayscale(1);
+}
+
+.world-stop::after {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  color: #d2c8d5;
+  font-size: 1.1rem;
+  content: "🔒";
+}
+
+.world-stop.unlocked {
+  border-color: rgba(255, 255, 255, 0.8);
+  color: #ffffff;
+  filter: none;
+}
+
+.world-stop.unlocked::after {
+  content: "";
+}
+
+.world-stop.current {
+  border-color: #ffd447;
+  box-shadow: 0 0 0 4px rgba(255, 212, 71, 0.2), 0 12px 24px rgba(0, 0, 0, 0.34);
+  animation: currentWorld 1.6s ease-in-out infinite;
+}
+
+.world-icon {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  aspect-ratio: 1;
+  margin: 0 auto 8px;
+  border: 4px solid rgba(255, 255, 255, 0.76);
+  border-radius: 50%;
+  font-size: 2.3rem;
+  background: #4d3852;
+}
+
+.world-forest .world-icon { background: #288a57; }
+.world-wind .world-icon { background: #4d9fc5; }
+.world-storm .world-icon { background: #564584; }
+.world-castle .world-icon { background: #9b493e; }
+
+.world-stop strong,
+.world-stop small {
+  display: block;
+}
+
+.world-stop strong {
+  min-height: 48px;
+  font-size: 1.15rem;
+  line-height: 1.05;
+}
+
+.world-stop small {
+  margin-top: 4px;
+  font-weight: 700;
+}
+
+@keyframes currentWorld {
+  50% { transform: translateY(-6px); }
 }
 
 .leaderboard-panel {
@@ -937,9 +1266,40 @@ p {
     bottom: 20vh;
   }
 
+  .world-map {
+    padding: 30px 16px 40px;
+  }
+
+  .world-map-heading {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .world-map-heading span {
+    grid-column: 1;
+    grid-row: auto;
+    width: max-content;
+  }
+
+  .world-path {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .world-path::before {
+    display: none;
+  }
+
+  .world-stop strong {
+    min-height: 42px;
+    font-size: 1rem;
+  }
+
   .top-bar {
     grid-template-columns: 1fr auto auto auto;
   }
+
+  .coin-board { grid-column: 1 / 2; }
+  .replay-button { grid-column: 2 / -1; }
 
   .reset-button {
     grid-column: 1 / 3;

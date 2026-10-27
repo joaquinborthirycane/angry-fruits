@@ -38,10 +38,13 @@ const levelEl = document.querySelector("#level");
 const livesEl = document.querySelector("#lives");
 const messageEl = document.querySelector("#message");
 const weatherIndicator = document.querySelector("#weatherIndicator");
+const weatherLayer = document.querySelector("#weatherLayer");
 const resetButton = document.querySelector("#resetButton");
 const costumeButton = document.querySelector("#costumeButton");
 const costumeDialog = document.querySelector("#costumeDialog");
 const costumeGrid = document.querySelector("#costumeGrid");
+const coinsEl = document.querySelector("#coins");
+const replayButton = document.querySelector("#replayButton");
 const closeCostumeButton = document.querySelector("#closeCostumeButton");
 const fruitCards = [...document.querySelectorAll(".fruit-card")];
 const gameOverDialog = document.querySelector("#gameOverDialog");
@@ -124,7 +127,6 @@ let audioContext;
 let lastCollisionSoundAt = 0;
 let levelBodies = [];
 let plant = null;
-let fan = null;
 let plantMouthOpenUntil = 0;
 let plantNextBiteAt = 0;
 let structureActivated = false;
@@ -133,6 +135,10 @@ let gameOver = false;
 let currentWeather = { id: "calm", icon: "☀️", name: "Calma", wind: 0 };
 let unlockedCostumeIds = loadStoredCostumes();
 let selectedCostumeId = loadSelectedCostume();
+let coins = Number(window.localStorage.getItem("super-frutas-coins")) || 0;
+let activeTrajectory = [];
+let bestTrajectory = [];
+let replayStartedAt = 0;
 
 const weatherModes = [
   { id: "calm", icon: "☀️", name: "Calma", wind: 0 },
@@ -145,6 +151,7 @@ const weatherModes = [
 function setLevelWeather(level) {
   currentWeather = weatherModes[(level - 1) % weatherModes.length];
   weatherIndicator.textContent = `${currentWeather.icon} ${currentWeather.name}`;
+  weatherLayer.className = `weather-layer weather-${currentWeather.id}`;
 }
 
 function loadStoredCostumes() {
@@ -290,10 +297,14 @@ function setScore(nextScore) {
   updateCostumeUnlocks();
 }
 
+function addCoins(amount) {
+  coins += amount;
+  coinsEl.textContent = String(coins);
+  try { window.localStorage.setItem("super-frutas-coins", String(coins)); } catch {}
+}
+
 function updateCostumeUnlocks() {
-  costumes.forEach((costume) => {
-    if (score >= costume.score) unlockedCostumeIds.add(costume.id);
-  });
+  unlockedCostumeIds.add("normal");
   if (!unlockedCostumeIds.has(selectedCostumeId)) selectedCostumeId = "normal";
   try {
     window.localStorage.setItem("super-frutas-costumes", JSON.stringify([...unlockedCostumeIds]));
@@ -311,16 +322,26 @@ function renderCostumeGrid() {
     button.type = "button";
     button.className = "costume-option";
     button.classList.toggle("selected", selectedCostumeId === costume.id);
-    button.disabled = !unlocked;
+    button.disabled = false;
     const preview = document.createElement("strong");
     preview.className = `hat-preview hat-${costume.id}`;
     preview.setAttribute("aria-hidden", "true");
     const name = document.createElement("span");
     name.textContent = costume.name;
     const status = document.createElement("small");
-    status.textContent = unlocked ? "Disponible" : `${costume.score} puntos`;
+    const price = Math.max(0, Math.round(costume.score / 20));
+    status.textContent = unlocked ? "Disponible" : `${price} monedas`;
     button.append(preview, name, status);
     button.addEventListener("click", () => {
+      if (!unlocked) {
+        if (coins < price) {
+          setMessage(`Faltan ${price - coins} monedas`);
+          return;
+        }
+        addCoins(-price);
+        unlockedCostumeIds.add(costume.id);
+        try { window.localStorage.setItem("super-frutas-costumes", JSON.stringify([...unlockedCostumeIds])); } catch {}
+      }
       selectedCostumeId = costume.id;
       try {
         window.localStorage.setItem("super-frutas-selected-costume", selectedCostumeId);
@@ -431,31 +452,6 @@ function makeGround() {
   const leftWall = Bodies.rectangle(-32, height / 2, 64, height, { isStatic: true, render: { visible: false } });
   const rightWall = Bodies.rectangle(width + 32, height / 2, 64, height, { isStatic: true, render: { visible: false } });
   Composite.add(engine.world, [launcherRock, castleRock, leftWall, rightWall]);
-}
-
-function makeFan() {
-  const anchor = getCatapultAnchor();
-  fan = Bodies.circle(anchor.x + scale(122), height - scale(80), scale(38), {
-    isStatic: true,
-    isSensor: true,
-    label: "fan",
-    render: { visible: false },
-  });
-  Composite.add(engine.world, fan);
-}
-
-function boostFruitWithFan(fruit) {
-  const now = performance.now();
-  if (!fruit?.wasLaunched || now < (fruit.nextFanBoostAt || 0)) return;
-  fruit.nextFanBoostAt = now + 900;
-  Body.setVelocity(fruit, {
-    x: Math.max(9, fruit.velocity.x + 4),
-    y: Math.min(-11, fruit.velocity.y - 8),
-  });
-  Body.setAngularVelocity(fruit, 0.75);
-  addBreak(fruit.position.x, fruit.position.y, "#b9f2ff", "↑");
-  playNoise({ duration: 0.22, volume: 0.08, filterFrequency: 1500 });
-  setMessage("¡El ventilador hizo volar la fruta!");
 }
 
 function makeCatapult() {
@@ -656,7 +652,7 @@ function makeProgressiveCastle(level) {
   const floorY = height - scale(64);
   const moduleCount = Math.min(4, 1 + Math.floor((level - 1) / 2));
   const regularCount = Math.min(11, level + 1);
-  const hasKing = level % 10 === 0;
+  const hasKing = level % 5 === 0;
   const castleWidth = Math.min(610, width * 0.48);
   const moduleGap = castleWidth / moduleCount;
   const moduleWidth = Math.min(126, moduleGap - 14);
@@ -686,10 +682,16 @@ function makeProgressiveCastle(level) {
     const kingX = startX + (moduleCount - 1) * moduleGap;
     const kingSlot = slots.find((slot) => slot.moduleIndex === moduleCount - 1 && slot.y === floorY - scale(31));
     if (kingSlot) slots.splice(slots.indexOf(kingSlot), 1);
-    const kingRank = level / 10;
+    const kingRank = Math.ceil(level / 5);
+    const bossCycle = [
+      { veggie: vegetables[3], name: "Tomate Titan" },
+      { veggie: vegetables[0], name: "Rey Brocoli" },
+      { veggie: vegetables[2], name: "Reina Berenjena" },
+    ];
+    const boss = bossCycle[(kingRank - 1) % bossCycle.length];
     bodies.push(
-      makeVegetable(kingX, floorY - scale(31), vegetables[0], 31, {
-        name: "Rey Brocoli",
+      makeVegetable(kingX, floorY - scale(31), boss.veggie, 31 + Math.min(8, kingRank), {
+        name: boss.name,
         isKing: true,
         kingRank,
         healthMultiplier: 2.2 + kingRank * 0.55,
@@ -801,12 +803,13 @@ function breakVegetable(body, fromKingExplosion = false) {
   Composite.remove(engine.world, body);
   vegetablesLeft -= 1;
   setScore(score + 100);
+  addCoins(body.game.isKing ? 50 : 10);
 
   if (defeatedKing && vegetablesLeft > 0) {
     const remainingVegetables = Composite.allBodies(engine.world).filter(
       (target) => target.label === "vegetable" && !target.game.broken,
     );
-    setMessage("¡Cayo el Rey Brocoli! ¡Explosion total!");
+    setMessage(`¡Cayo ${body.game.name}! ¡Explosion total!`);
     remainingVegetables.forEach((target, index) => {
       addPowerTimer(() => {
         if (!target.game.broken) {
@@ -1010,6 +1013,12 @@ function finishLevel() {
   playLevelSound();
   addPowerTimer(() => {
     currentLevel = nextLevel;
+    try {
+      const highestLevel = Number(window.localStorage.getItem("super-frutas-highest-level")) || 1;
+      window.localStorage.setItem("super-frutas-highest-level", String(Math.max(highestLevel, currentLevel)));
+    } catch {
+      // Progress remains available for the current game when storage is unavailable.
+    }
     setLevelWeather(currentLevel);
     levelEl.textContent = String(currentLevel);
     currentFruitIndex = 0;
@@ -1025,8 +1034,8 @@ function finishLevel() {
     const newlyUnlocked = updateUnlocks();
     makeFruit(getCatapultAnchor(), 0);
     updateFruitTray();
-    if (currentLevel % 10 === 0) {
-      setMessage("Rey Brocoli: ¡Jua, jua, jua!");
+    if (currentLevel % 5 === 0) {
+      setMessage("¡Un jefe protege este nivel!");
       playKingLaugh();
     } else if (earnedExtraLife) {
       setMessage(`¡Vida extra! Ya tienes ${lives} vidas`);
@@ -1277,6 +1286,7 @@ function drawLabels() {
 
   // The fork stays behind the projectile so the launch channel remains visibly open.
   drawCatapult(ctx);
+  drawReplayTrail(ctx);
 
   Composite.allBodies(engine.world).forEach((body) => {
     if (body.label === "fruit" && body.game) {
@@ -1300,7 +1310,6 @@ function drawLabels() {
   });
 
   drawPlant(ctx);
-  drawFan(ctx);
 
   if (currentFruit && !launched) {
     const guideSize = scale(92);
@@ -1316,6 +1325,28 @@ function drawLabels() {
   }
 
   ctx.restore();
+}
+
+function drawReplayTrail(ctx) {
+  if (!replayStartedAt || bestTrajectory.length < 2) return;
+  const index = Math.min(bestTrajectory.length - 1, Math.floor((performance.now() - replayStartedAt) / 24));
+  ctx.save();
+  ctx.strokeStyle = "rgba(255, 239, 120, 0.78)";
+  ctx.lineWidth = 5;
+  ctx.setLineDash([8, 8]);
+  ctx.beginPath();
+  bestTrajectory.slice(0, index + 1).forEach((point, pointIndex) => {
+    if (pointIndex === 0) ctx.moveTo(point.x, point.y);
+    else ctx.lineTo(point.x, point.y);
+  });
+  ctx.stroke();
+  const point = bestTrajectory[index];
+  ctx.fillStyle = "#ffd447";
+  ctx.beginPath();
+  ctx.arc(point.x, point.y, 12, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  if (index === bestTrajectory.length - 1) replayStartedAt = 0;
 }
 
 function drawCatapult(ctx) {
@@ -1365,40 +1396,6 @@ function drawCatapult(ctx) {
     ctx.stroke();
   }
 
-  ctx.restore();
-}
-
-function drawFan(ctx) {
-  if (!fan) return;
-  ctx.save();
-  ctx.translate(fan.position.x, fan.position.y);
-  ctx.scale(GAME_SCALE, GAME_SCALE);
-
-  ctx.fillStyle = "#4b5b67";
-  ctx.fillRect(-8, 26, 16, 24);
-  ctx.fillStyle = "#26343d";
-  ctx.fillRect(-27, 46, 54, 8);
-
-  ctx.fillStyle = "#dce8ed";
-  ctx.strokeStyle = "#26343d";
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.arc(0, 0, 36, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.stroke();
-
-  ctx.rotate(performance.now() / 115);
-  ctx.fillStyle = "#4fc3f7";
-  for (let i = 0; i < 4; i += 1) {
-    ctx.rotate(Math.PI / 2);
-    ctx.beginPath();
-    ctx.ellipse(0, -17, 8, 18, 0.35, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.fillStyle = "#ef4d3f";
-  ctx.beginPath();
-  ctx.arc(0, 0, 7, 0, Math.PI * 2);
-  ctx.fill();
   ctx.restore();
 }
 
@@ -1731,12 +1728,6 @@ function drawParticles() {
 function setupCollisions() {
   Events.on(engine, "collisionStart", (event) => {
     event.pairs.forEach((pair) => {
-      const sensorBodies = [pair.bodyA, pair.bodyB];
-      const touchedFan = sensorBodies.some((body) => body.label === "fan");
-      if (touchedFan) {
-        boostFruitWithFan(sensorBodies.map(getFruitBody).find(Boolean));
-        return;
-      }
       if (pair.bodyA.isSensor || pair.bodyB.isSensor) return;
       if (levelHasStarted && Math.max(pair.bodyA.speed, pair.bodyB.speed) > 1.6) {
         playCollisionSound();
@@ -1869,6 +1860,7 @@ function setupMouse() {
       const launchPull =
         pullDistance > MAX_CATAPULT_PULL ? Vector.mult(Vector.normalise(pull), MAX_CATAPULT_PULL) : pull;
       launched = true;
+      activeTrajectory = [];
       levelHasStarted = true;
       levelLaunchCount += 1;
       launchedFruit.wasLaunched = true;
@@ -1902,11 +1894,18 @@ function setupMouse() {
 function drawBackground() {
   const ctx = render.context;
   ctx.save();
+  const worldIndex = Math.min(3, Math.floor((currentLevel - 1) / 5));
+  const world = [
+    ["#315d4a", "#d65343", "#ff9a3d", "#33252c"],
+    ["#32647b", "#77b8ca", "#d8edf0", "#39464d"],
+    ["#25244f", "#574475", "#87638d", "#21172d"],
+    ["#3c2634", "#7f3438", "#bf5940", "#24171d"],
+  ][worldIndex];
   const sky = ctx.createLinearGradient(0, 0, 0, height);
-  sky.addColorStop(0, "#532b55");
-  sky.addColorStop(0.3, "#bd3f4f");
-  sky.addColorStop(0.57, "#ff8a3d");
-  sky.addColorStop(0.58, "#4c3138");
+  sky.addColorStop(0, world[0]);
+  sky.addColorStop(0.3, world[1]);
+  sky.addColorStop(0.57, world[2]);
+  sky.addColorStop(0.58, world[3]);
   sky.addColorStop(1, "#160f1a");
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, width, height);
@@ -2042,7 +2041,6 @@ function startGame({ preserveScore = false } = {}) {
   setMessage("Nivel 1: elige una fruta");
 
   makeGround();
-  makeFan();
   const anchor = makeCatapult();
   makeCastle();
   makeFruit(anchor, 0);
@@ -2050,6 +2048,13 @@ function startGame({ preserveScore = false } = {}) {
   setupMouse();
 
   Events.on(engine, "afterUpdate", () => {
+    if (currentFruit?.wasLaunched && Composite.get(engine.world, currentFruit.id, "body")) {
+      activeTrajectory.push({ x: currentFruit.position.x, y: currentFruit.position.y });
+      if (activeTrajectory.length > bestTrajectory.length) {
+        bestTrajectory = activeTrajectory.slice();
+        replayButton.disabled = bestTrajectory.length < 8;
+      }
+    }
     checkFallenVegetables();
     removeStoppedFruits();
   });
@@ -2100,6 +2105,11 @@ costumeButton.addEventListener("click", () => {
   costumeDialog.showModal();
 });
 closeCostumeButton.addEventListener("click", () => costumeDialog.close());
+replayButton.addEventListener("click", () => {
+  if (bestTrajectory.length < 2) return;
+  replayStartedAt = performance.now();
+  setMessage("Repeticion del mejor tiro");
+});
 fruitCards.forEach((card, index) => {
   card.addEventListener("click", () => chooseFruit(index));
 });
@@ -2111,4 +2121,5 @@ window.addEventListener("resize", () => {
 
 updateLives();
 renderCostumeGrid();
+coinsEl.textContent = String(coins);
 startGame();

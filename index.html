@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20261018-15" />
+    <link rel="stylesheet" href="styles.css?v=20261027-16" />
   </head>
   <body class="start-page">
     <main class="start-screen">
@@ -23,7 +23,10 @@
         <p class="start-kicker">by Codo77</p>
         <h1 id="gameTitle">Super Frutas<br />al Rescate</h1>
         <p class="start-subtitle">¡Prepara la catapulta y rescata el reino frutal!</p>
-        <a class="play-button" href="game.html">Jugar</a>
+        <div class="start-actions">
+          <a class="play-button" href="game.html">Jugar</a>
+          <a class="map-button" href="#worldMapTitle">Mapa</a>
+        </div>
       </section>
 
       <section class="start-ranking leaderboard-panel" aria-labelledby="rankingTitle">
@@ -48,6 +51,36 @@
         <span>🥦</span><span>🥕</span><span>🍆</span>
       </div>
     </main>
-    <script type="module" src="src/home.js?v=20261018-2"></script>
+
+    <section class="world-map" aria-labelledby="worldMapTitle">
+      <div class="world-map-heading">
+        <p>Tu aventura</p>
+        <h2 id="worldMapTitle">Mapa de mundos</h2>
+        <span id="mapProgress">Nivel máximo: 1</span>
+      </div>
+      <div class="world-path" id="worldPath">
+        <article class="world-stop world-forest" data-start-level="1">
+          <span class="world-icon" aria-hidden="true">🌳</span>
+          <strong>Bosque Frutal</strong>
+          <small>Niveles 1–5</small>
+        </article>
+        <article class="world-stop world-wind" data-start-level="6">
+          <span class="world-icon" aria-hidden="true">💨</span>
+          <strong>Montañas Ventosas</strong>
+          <small>Niveles 6–10</small>
+        </article>
+        <article class="world-stop world-storm" data-start-level="11">
+          <span class="world-icon" aria-hidden="true">⛈️</span>
+          <strong>Reino Tormenta</strong>
+          <small>Niveles 11–15</small>
+        </article>
+        <article class="world-stop world-castle" data-start-level="16">
+          <span class="world-icon" aria-hidden="true">🏰</span>
+          <strong>Fortaleza Brócoli</strong>
+          <small>Nivel 16 en adelante</small>
+        </article>
+      </div>
+    </section>
+    <script type="module" src="src/home.js?v=20261027-3"></script>
   </body>
 </html>
