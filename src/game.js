@@ -108,7 +108,7 @@ let launched = false;
 let score = 0;
 let lives = 3;
 let breakParticles = [];
-let catapultParts = [];
+let catapultReady = false;
 let vegetablesLeft = 0;
 let powerTimers = [];
 let currentLevel = 1;
@@ -459,24 +459,8 @@ function boostFruitWithFan(fruit) {
 }
 
 function makeCatapult() {
-  const anchor = getCatapultAnchor();
-  const post = Bodies.rectangle(anchor.x, anchor.y + CATAPULT_HEIGHT / 2, scale(16), CATAPULT_HEIGHT, {
-    isStatic: true,
-    isSensor: true,
-    label: "catapult",
-    collisionFilter: { category: WORLD_CATEGORY, mask: 0 },
-    render: { visible: false },
-  });
-  const foot = Bodies.rectangle(anchor.x, anchor.y + CATAPULT_HEIGHT, scale(72), scale(14), {
-    isStatic: true,
-    isSensor: true,
-    label: "catapult",
-    collisionFilter: { category: WORLD_CATEGORY, mask: 0 },
-    render: { visible: false },
-  });
-  catapultParts = [post, foot];
-  Composite.add(engine.world, catapultParts);
-  return anchor;
+  catapultReady = true;
+  return getCatapultAnchor();
 }
 
 function getCatapultAnchor() {
@@ -1335,47 +1319,48 @@ function drawLabels() {
 }
 
 function drawCatapult(ctx) {
-  if (!catapultParts.length) return;
+  if (!catapultReady) return;
   const anchor = getCatapultAnchor();
 
   ctx.save();
   ctx.lineCap = "round";
   ctx.lineJoin = "round";
 
-  const leftTip = { x: anchor.x - scale(34), y: anchor.y + scale(42) };
-  const rightTip = { x: anchor.x + scale(34), y: anchor.y + scale(42) };
-  const forkJoint = { x: anchor.x, y: anchor.y + scale(68) };
+  const upperTip = { x: anchor.x + scale(82), y: anchor.y - scale(62) };
+  const lowerTip = { x: anchor.x + scale(82), y: anchor.y + scale(62) };
+  const forkBackX = anchor.x - scale(42);
+
+  // A sideways U leaves a clear launch corridor between its long arms.
+  ctx.strokeStyle = "#7f4d2d";
+  ctx.lineWidth = scale(12);
+  ctx.beginPath();
+  ctx.moveTo(upperTip.x, upperTip.y);
+  ctx.lineTo(forkBackX, upperTip.y);
+  ctx.quadraticCurveTo(forkBackX - scale(20), anchor.y, forkBackX, lowerTip.y);
+  ctx.lineTo(lowerTip.x, lowerTip.y);
+  ctx.stroke();
 
   ctx.strokeStyle = "#58351f";
   ctx.lineWidth = scale(13);
   ctx.beginPath();
-  ctx.moveTo(forkJoint.x, forkJoint.y);
-  ctx.lineTo(anchor.x, anchor.y + CATAPULT_HEIGHT);
-  ctx.stroke();
-
-  ctx.strokeStyle = "#7f4d2d";
-  ctx.lineWidth = scale(11);
-  ctx.beginPath();
-  ctx.moveTo(forkJoint.x, forkJoint.y);
-  ctx.lineTo(leftTip.x, leftTip.y);
-  ctx.moveTo(forkJoint.x, forkJoint.y);
-  ctx.lineTo(rightTip.x, rightTip.y);
+  ctx.moveTo(forkBackX, anchor.y + scale(15));
+  ctx.lineTo(forkBackX, anchor.y + CATAPULT_HEIGHT);
   ctx.stroke();
 
   ctx.strokeStyle = "#99613a";
   ctx.lineWidth = scale(10);
   ctx.beginPath();
-  ctx.moveTo(anchor.x - scale(25), anchor.y + CATAPULT_HEIGHT + scale(4));
-  ctx.lineTo(anchor.x + scale(25), anchor.y + CATAPULT_HEIGHT + scale(4));
+  ctx.moveTo(forkBackX - scale(25), anchor.y + CATAPULT_HEIGHT + scale(4));
+  ctx.lineTo(forkBackX + scale(25), anchor.y + CATAPULT_HEIGHT + scale(4));
   ctx.stroke();
 
   if (currentFruit && !launched) {
     ctx.strokeStyle = "#362018";
     ctx.lineWidth = scale(5);
     ctx.beginPath();
-    ctx.moveTo(leftTip.x, leftTip.y);
+    ctx.moveTo(upperTip.x, upperTip.y);
     ctx.lineTo(currentFruit.position.x, currentFruit.position.y);
-    ctx.lineTo(rightTip.x, rightTip.y);
+    ctx.lineTo(lowerTip.x, lowerTip.y);
     ctx.stroke();
   }
 
