@@ -808,10 +808,11 @@ p {
   bottom: 7vh;
   left: 50%;
   z-index: 2;
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
   justify-content: center;
   gap: clamp(8px, 1.5vw, 20px);
-  width: min(94vw, 760px);
+  width: min(94vw, 1100px);
   transform: translateX(-50%);
 }
 
@@ -819,7 +820,8 @@ p {
   position: relative;
   display: grid;
   place-items: center;
-  width: clamp(66px, 8vw, 96px);
+  width: 100%;
+  box-sizing: border-box;
   aspect-ratio: 1;
   border: 5px solid rgba(255, 255, 255, 0.76);
   border-radius: 50%;
@@ -862,6 +864,10 @@ p {
 .fruit-pear { animation-delay: -0.9s; }
 .fruit-watermelon { animation-delay: -1.2s; }
 .fruit-grapes { animation-delay: -1.5s; }
+.fruit-dragon { animation-delay: -1.8s; }
+.fruit-melon { animation-delay: -0.45s; background: rgba(255, 126, 36, 0.3); }
+.fruit-strawberry { animation-delay: -0.75s; background: rgba(255, 97, 143, 0.3); }
+.fruit-juice { animation-delay: -1.05s; background: rgba(255, 176, 43, 0.3); }
 
 .start-cliff {
   position: absolute;
@@ -1167,13 +1173,14 @@ p {
   .start-fruits {
     bottom: 5vh;
     left: 50%;
-    gap: 5px;
-    width: 96vw;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    width: min(92vw, 360px);
     transform: translateX(-50%);
   }
 
   .start-fruit {
-    width: clamp(48px, 14vw, 66px);
+    width: 100%;
     border-width: 3px;
     font-size: clamp(2rem, 9vw, 3rem);
   }
