@@ -1,4 +1,3 @@
-import { renderLeaderboard, submitScore } from "./ranking.js?v=20261018-2";
 
 const matter = window.Matter;
 
@@ -21,6 +20,7 @@ const {
   Vector,
 } = matter;
 
+const PLAYER_PROFILE_KEY = "super-frutas-player-profile-v1";
 const WORLD_CATEGORY = 0x0001;
 const LOADED_FRUIT_CATEGORY = 0x0002;
 const GAME_SCALE = 0.7;
@@ -41,20 +41,11 @@ const weatherIndicator = document.querySelector("#weatherIndicator");
 const weatherLayer = document.querySelector("#weatherLayer");
 const worldIntro = document.querySelector("#worldIntro");
 const resetButton = document.querySelector("#resetButton");
-const costumeButton = document.querySelector("#costumeButton");
-const costumeDialog = document.querySelector("#costumeDialog");
-const costumeGrid = document.querySelector("#costumeGrid");
-const coinsEl = document.querySelector("#coins");
 const replayButton = document.querySelector("#replayButton");
-const closeCostumeButton = document.querySelector("#closeCostumeButton");
-const upgradeGrid = document.querySelector("#upgradeGrid");
 const fruitCards = [...document.querySelectorAll(".fruit-card")];
 const gameOverDialog = document.querySelector("#gameOverDialog");
+const homeButton = gameOverDialog.querySelector(".home-button");
 const finalScoreEl = document.querySelector("#finalScore");
-const scoreForm = document.querySelector("#scoreForm");
-const playerNameInput = document.querySelector("#playerName");
-const scoreStatus = document.querySelector("#scoreStatus");
-const gameLeaderboard = document.querySelector("#gameLeaderboard");
 
 const fruits = [
   { id: "banana", name: "Banana", emoji: "🍌", color: "#ffe066", radius: scale(28), density: 0.0016 },
@@ -82,6 +73,36 @@ const fruits = [
     restitution: 0.38,
     unlockScore: 15000,
   },
+  {
+    id: "melon",
+    name: "Melon de Fuego",
+    emoji: "🍈",
+    color: "#79c94b",
+    radius: scale(34),
+    density: 0.0024,
+    restitution: 0.4,
+    requiresKey: true,
+  },
+  {
+    id: "fresa",
+    name: "Fresa Inflable",
+    emoji: "🍓",
+    color: "#ef4056",
+    radius: scale(27),
+    density: 0.0014,
+    restitution: 0.58,
+    unlockScore: 20000,
+  },
+  {
+    id: "naranja",
+    name: "Naranja de Zumo",
+    emoji: "🍊",
+    color: "#ff861c",
+    radius: scale(31),
+    density: 0.0018,
+    restitution: 0.44,
+    requiresKeyCount: 2,
+  },
 ];
 
 const vegetables = [
@@ -90,14 +111,6 @@ const vegetables = [
   { name: "Berenjena", emoji: "🍆", color: "#7c4cc2", sizeScale: 1.08, density: 0.0028, toughness: 1.35 },
   { name: "Tomate", emoji: "🍅", color: "#ef3e36", sizeScale: 0.92, density: 0.0015, toughness: 0.75 },
   { name: "Maiz", emoji: "🌽", color: "#ffd447", sizeScale: 1.24, density: 0.0032, toughness: 1.5 },
-];
-
-const costumes = [
-  { id: "normal", name: "Sin gorrito", score: 0 },
-  { id: "party", name: "Fiesta", score: 2000 },
-  { id: "crown", name: "Corona", score: 6000 },
-  { id: "cape", name: "Superheroe", score: 10000 },
-  { id: "space", name: "Espacial", score: 15000 },
 ];
 
 let width = stage.clientWidth;
@@ -111,7 +124,7 @@ let currentFruit;
 let currentFruitIndex = 0;
 let launched = false;
 let score = 0;
-let lives = 3;
+let lives = 6;
 let breakParticles = [];
 let catapultReady = false;
 let vegetablesLeft = 0;
@@ -122,7 +135,7 @@ let levelHasStarted = false;
 let levelLaunchCount = 0;
 let usedFruitIds = new Set();
 let fruitUseCounts = new Map();
-let unlockedFruitIds = new Set(["banana", "mandarina"]);
+let unlockedFruitIds = loadUnlockedFruits();
 let announcedFruitIds = new Set();
 let pearPowerAnnounced = false;
 let audioContext;
@@ -135,33 +148,68 @@ let structureActivated = false;
 let structureActivatedAt = 0;
 let gameOver = false;
 let currentWeather = { id: "calm", icon: "☀️", name: "Calma", wind: 0 };
-let unlockedCostumeIds = loadStoredCostumes();
-let selectedCostumeId = loadSelectedCostume();
-let coins = Number(window.localStorage.getItem("super-frutas-coins")) || 0;
 let activeTrajectory = [];
 let bestTrajectory = [];
 let replayStartedAt = 0;
 let portals = [];
 let portalCooldownUntil = 0;
-let powerUpgrades = loadPowerUpgrades();
+let cannons = [];
+let nextCannonShotAt = 0;
+let nextWorldHazardAt = 0;
+let levelKey = null;
+let keyCollected = false;
+let collectedKeyCount = loadCollectedKeyCount();
+if (collectedKeyCount >= 1) unlockedFruitIds.add("melon");
+if (collectedKeyCount >= 2) unlockedFruitIds.add("naranja");
 
-const powerUpgradeOptions = [
-  { id: "banana", name: "Bumeran", icon: "🍌" },
-  { id: "mandarina", name: "Mas gajos", icon: "🍊" },
-  { id: "manzana", name: "Mas semillas", icon: "🍎" },
-  { id: "uvas", name: "Mas bombas", icon: "🍇" },
-];
+function loadPlayerProfile() {
+  try {
+    return JSON.parse(window.localStorage.getItem(PLAYER_PROFILE_KEY) || "null");
+  } catch {
+    return null;
+  }
+}
 
-function loadPowerUpgrades() {
-  try { return JSON.parse(window.localStorage.getItem("super-frutas-power-upgrades") || "{}"); } catch { return {}; }
+function loadUnlockedFruits() {
+  try {
+    const profile = loadPlayerProfile();
+    const legacy = JSON.parse(window.localStorage.getItem("super-frutas-unlocked-fruits") || "[]");
+    const stored = Array.isArray(profile?.unlockedFruits) ? profile.unlockedFruits : [];
+    return new Set(["banana", "mandarina", ...legacy, ...stored]);
+  } catch {
+    return new Set(["banana", "mandarina"]);
+  }
+}
+
+function loadCollectedKeyCount() {
+  const profile = loadPlayerProfile();
+  if (Number.isFinite(profile?.collectedKeyCount)) return profile.collectedKeyCount;
+  return Array.isArray(profile?.unlockedFruits) && profile.unlockedFruits.includes("melon") ? 1 : 0;
+}
+
+function persistPlayerProgress() {
+  try {
+    const storedProfile = loadPlayerProfile();
+    const storedFruits = Array.isArray(storedProfile?.unlockedFruits) ? storedProfile.unlockedFruits : [];
+    storedFruits.forEach((fruitId) => unlockedFruitIds.add(fruitId));
+    const profile = {
+      unlockedFruits: [...unlockedFruitIds],
+      collectedKeyCount: Math.max(collectedKeyCount, Number(storedProfile?.collectedKeyCount) || 0),
+    };
+    window.localStorage.setItem(PLAYER_PROFILE_KEY, JSON.stringify(profile));
+    window.localStorage.setItem("super-frutas-unlocked-fruits", JSON.stringify([...unlockedFruitIds]));
+  } catch {
+    // The current session remains playable when browser storage is unavailable.
+  }
 }
 
 const weatherModes = [
   { id: "calm", icon: "☀️", name: "Calma", wind: 0 },
-  { id: "windRight", icon: "💨", name: "Viento →", wind: 0.0001 },
-  { id: "rain", icon: "🌧️", name: "Lluvia", wind: 0.000025 },
-  { id: "windLeft", icon: "💨", name: "Viento ←", wind: -0.000085 },
+  { id: "windRight", icon: "💨", name: "Viento →", wind: 0.00038 },
+  { id: "rain", icon: "🌧️", name: "Lluvia", wind: 0.00006 },
+  { id: "windLeft", icon: "💨", name: "Viento ←", wind: -0.00034 },
   { id: "storm", icon: "⛈️", name: "Tormenta", wind: 0 },
+  { id: "snow", icon: "❄️", name: "Nieve", wind: 0 },
 ];
 
 function setLevelWeather(level) {
@@ -187,34 +235,14 @@ function setLevelWeather(level) {
   }
 }
 
-function loadStoredCostumes() {
-  try {
-    const stored = JSON.parse(window.localStorage.getItem("super-frutas-costumes") || "[]");
-    return new Set(["normal", ...stored]);
-  } catch {
-    return new Set(["normal"]);
-  }
-}
-
-function loadSelectedCostume() {
-  try {
-    return window.localStorage.getItem("super-frutas-selected-costume") || "normal";
-  } catch {
-    return "normal";
-  }
-}
-
 function finishGame() {
+  persistPlayerProgress();
   gameOver = true;
   Runner.stop(runner);
   Render.stop(render);
   resetButton.disabled = true;
   finalScoreEl.textContent = String(score);
-  scoreForm.hidden = score <= 0;
-  scoreStatus.textContent = "";
-  renderLeaderboard(gameLeaderboard);
   gameOverDialog.showModal();
-  if (score > 0) playerNameInput.focus();
 }
 
 function setMessage(text) {
@@ -327,90 +355,6 @@ function setScore(nextScore) {
   score = nextScore;
   scoreEl.textContent = String(score);
   updateUnlocks();
-  updateCostumeUnlocks();
-}
-
-function addCoins(amount) {
-  coins += amount;
-  coinsEl.textContent = String(coins);
-  try { window.localStorage.setItem("super-frutas-coins", String(coins)); } catch {}
-}
-
-function updateCostumeUnlocks() {
-  unlockedCostumeIds.add("normal");
-  if (!unlockedCostumeIds.has(selectedCostumeId)) selectedCostumeId = "normal";
-  try {
-    window.localStorage.setItem("super-frutas-costumes", JSON.stringify([...unlockedCostumeIds]));
-  } catch {
-    // The game still works when browser storage is unavailable.
-  }
-  renderCostumeGrid();
-}
-
-function renderCostumeGrid() {
-  costumeGrid.replaceChildren();
-  costumes.forEach((costume) => {
-    const unlocked = unlockedCostumeIds.has(costume.id);
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "costume-option";
-    button.classList.toggle("selected", selectedCostumeId === costume.id);
-    button.disabled = false;
-    const preview = document.createElement("strong");
-    preview.className = `hat-preview hat-${costume.id}`;
-    preview.setAttribute("aria-hidden", "true");
-    const name = document.createElement("span");
-    name.textContent = costume.name;
-    const status = document.createElement("small");
-    const price = Math.max(0, Math.round(costume.score / 20));
-    status.textContent = unlocked ? "Disponible" : `${price} monedas`;
-    button.append(preview, name, status);
-    button.addEventListener("click", () => {
-      if (!unlocked) {
-        if (coins < price) {
-          setMessage(`Faltan ${price - coins} monedas`);
-          return;
-        }
-        addCoins(-price);
-        unlockedCostumeIds.add(costume.id);
-        try { window.localStorage.setItem("super-frutas-costumes", JSON.stringify([...unlockedCostumeIds])); } catch {}
-      }
-      selectedCostumeId = costume.id;
-      try {
-        window.localStorage.setItem("super-frutas-selected-costume", selectedCostumeId);
-      } catch {
-        // Keep the selection for this session.
-      }
-      renderCostumeGrid();
-      setMessage(`Disfraz: ${costume.name}`);
-    });
-    costumeGrid.append(button);
-  });
-}
-
-function renderUpgradeGrid() {
-  upgradeGrid.replaceChildren();
-  powerUpgradeOptions.forEach((upgrade) => {
-    const level = Math.min(3, powerUpgrades[upgrade.id] || 0);
-    const price = (level + 1) * 100;
-    const button = document.createElement("button");
-    button.type = "button";
-    button.className = "upgrade-option";
-    button.disabled = level >= 3;
-    button.innerHTML = `<strong>${upgrade.icon} ${upgrade.name}</strong><span>Nivel ${level}/3</span><small>${level >= 3 ? "MAX" : `${price} monedas`}</small>`;
-    button.addEventListener("click", () => {
-      if (coins < price) {
-        setMessage(`Faltan ${price - coins} monedas`);
-        return;
-      }
-      addCoins(-price);
-      powerUpgrades[upgrade.id] = level + 1;
-      try { window.localStorage.setItem("super-frutas-power-upgrades", JSON.stringify(powerUpgrades)); } catch {}
-      renderUpgradeGrid();
-      setMessage(`¡${upgrade.name} mejorado!`);
-    });
-    upgradeGrid.append(button);
-  });
 }
 
 function updateLives() {
@@ -421,6 +365,7 @@ function updateLives() {
 function updateUnlocks() {
   const newlyUnlocked = [];
   fruits.forEach((fruit) => {
+    if (fruit.requiresKey || fruit.requiresKeyCount) return;
     const reachedLevel = !fruit.unlockLevel || currentLevel >= fruit.unlockLevel;
     const reachedScore = !fruit.unlockScore || score >= fruit.unlockScore;
     if (reachedLevel && reachedScore && !unlockedFruitIds.has(fruit.id)) {
@@ -436,10 +381,13 @@ function updateUnlocks() {
     setMessage("¡La pera consiguio el escudo anticaida!");
   }
   updateFruitTray();
+  persistPlayerProgress();
   return newlyUnlocked;
 }
 
 function isFruitUnlocked(fruit) {
+  if (fruit.requiresKey) return unlockedFruitIds.has(fruit.id);
+  if (fruit.requiresKeyCount) return unlockedFruitIds.has(fruit.id);
   return (!fruit.unlockLevel && !fruit.unlockScore) || unlockedFruitIds.has(fruit.id);
 }
 
@@ -586,6 +534,22 @@ function makeSeed(x, y, velocity) {
   return body;
 }
 
+function makeFireball(x, y, velocity) {
+  const body = Bodies.circle(x, y, scale(10), {
+    label: "fire",
+    density: preserveMassDensity(0.0015),
+    restitution: 0.18,
+    frictionAir: 0.004,
+    render: { visible: false },
+  });
+  Body.setVelocity(body, velocity);
+  Composite.add(engine.world, body);
+  addPowerTimer(() => {
+    if (Composite.get(engine.world, body.id, "body")) Composite.remove(engine.world, body);
+  }, 2200);
+  return body;
+}
+
 function getFruitBody(body) {
   if (!body) return null;
   if (body.label === "fruit") return body;
@@ -686,6 +650,28 @@ function makeGlassBlock(x, y, w, h) {
   return registerLevelBody(body);
 }
 
+function makeIceBlock(x, y, w, h) {
+  const body = Bodies.rectangle(x, y, scale(w), scale(h), {
+    label: "iceBlock",
+    density: preserveMassDensity(0.0018),
+    friction: 0.025,
+    frictionStatic: 0.03,
+    restitution: 0.16,
+    render: { visible: false },
+  });
+  body.game = { width: scale(w), height: scale(h) };
+  return registerLevelBody(body);
+}
+
+function makeGelBlock(x, y, w, h) {
+  const body = Bodies.rectangle(x, y, scale(w), scale(h), {
+    label: "gelBlock", density: preserveMassDensity(0.0013), friction: 0.08, restitution: 1.05,
+    render: { visible: false },
+  });
+  body.game = { width: scale(w), height: scale(h) };
+  return registerLevelBody(body);
+}
+
 function makeTnt(x, y) {
   return makeGlassBlock(x, y, 42, 42);
 }
@@ -715,6 +701,19 @@ function makeCastle() {
   portals = currentLevel >= 6 && currentLevel % 3 === 0
     ? [{ x: width * 0.43, y: height * 0.42 }, { x: width * 0.67, y: height * 0.25 }]
     : [];
+  cannons = currentLevel >= 5 && currentLevel % 3 === 2
+    ? [{ x: width - scale(105), y: height - scale(112) }]
+    : [];
+  nextCannonShotAt = performance.now() + 1800;
+  nextWorldHazardAt = performance.now() + 2600;
+  levelKey = currentLevel >= 8 && currentLevel % 4 === 0 ? { x: width * 0.52, y: height * 0.3 } : null;
+  keyCollected = !levelKey;
+  if (currentLevel >= 11 && currentLevel <= 15) {
+    const cactus = Bodies.rectangle(width * 0.55, height - scale(92), scale(28), scale(105), {
+      isStatic: true, label: "cactus", restitution: 1.25, friction: 0.05, render: { visible: false },
+    });
+    Composite.add(engine.world, cactus);
+  }
   makePlant();
 }
 
@@ -743,7 +742,11 @@ function makeProgressiveCastle(level) {
     if (hasUpperFloor) {
       bodies.push(makeBlock(x - scale(moduleWidth * 0.27), floorY - scale(112), 20, 64));
       bodies.push(makeBlock(x + scale(moduleWidth * 0.27), floorY - scale(112), 20, 64));
-      const roof = level >= 3 && (moduleIndex + level) % 3 === 0 ? makeGlassBlock : makeBlock;
+      const roof = level >= 7 && (moduleIndex + level) % 5 === 0
+        ? makeGelBlock
+        : level >= 4 && (moduleIndex + level) % 4 === 0
+        ? makeIceBlock
+        : level >= 3 && (moduleIndex + level) % 3 === 0 ? makeGlassBlock : makeBlock;
       bodies.push(roof(x, floorY - scale(151), moduleWidth * 0.86, 18));
       slots.push({ x, y: floorY - scale(186), moduleIndex });
     }
@@ -783,6 +786,11 @@ function makeProgressiveCastle(level) {
     bodies.push(makeVegetable(slot.x + scale(row * 14), slot.y - scale(row * 8), veggie, isEasy ? 21 : 24, {
       healthMultiplier,
       shieldHits: level >= 3 && index % 4 === 2 ? 1 : 0,
+      isGhost: level >= 4 && index % 5 === 3,
+      isHealer: level >= 6 && index % 6 === 4,
+      isNinja: level >= 7 && index % 7 === 5,
+      isCaged: Boolean(levelKey) && index === 0,
+      nextSpecialAt: 0,
     }));
   }
 
@@ -831,6 +839,10 @@ function collisionEnergy(attacker, target) {
 
 function damageVegetable(body, energy, source = null) {
   if (!body || body.game.broken || energy < 16) return;
+  if (body.game.isCaged && !keyCollected) {
+    setMessage("¡Primero encuentra la llave!");
+    return;
+  }
   const now = performance.now();
   if (now - body.game.lastDamageAt < 160) return;
   body.game.lastDamageAt = now;
@@ -885,7 +897,6 @@ function breakVegetable(body, fromKingExplosion = false) {
   Composite.remove(engine.world, body);
   vegetablesLeft -= 1;
   setScore(score + 100);
-  addCoins(body.game.isKing ? 50 : 10);
 
   if (defeatedKing && vegetablesLeft > 0) {
     const remainingVegetables = Composite.allBodies(engine.world).filter(
@@ -922,26 +933,21 @@ function breakSteel(body) {
 function breakBuildingBlock(body) {
   if (!body || !Composite.get(engine.world, body.id, "body")) return;
   const isGlass = body.label === "glassBlock";
-  addBreak(body.position.x, body.position.y, isGlass ? "#b9f2ff" : "#9a704d", isGlass ? "✦" : "▪");
+  const isIce = body.label === "iceBlock";
+  addBreak(body.position.x, body.position.y, isGlass || isIce ? "#b9f2ff" : "#9a704d", isGlass || isIce ? "✦" : "▪");
   playBreakSound();
   Composite.remove(engine.world, body);
-  setScore(score + (isGlass ? 35 : 20));
-  setMessage(isGlass ? "¡Cristal roto!" : "¡Madera rota!");
+  setScore(score + (isGlass || isIce ? 35 : 20));
+  setMessage(isIce ? "¡Hielo roto!" : isGlass ? "¡Cristal roto!" : "¡Madera rota!");
 }
 
 function openChest(body) {
   if (!body || body.game.opened) return;
   body.game.opened = true;
   Composite.remove(engine.world, body);
-  const reward = 20 + Math.floor(Math.random() * 31);
-  addCoins(reward);
-  if (Math.random() < 0.12) {
-    lives += 1;
-    updateLives();
-    setMessage(`¡Cofre: ${reward} monedas y una vida!`);
-  } else {
-    setMessage(`¡Cofre: ${reward} monedas!`);
-  }
+  const reward = 150 + Math.floor(Math.random() * 201);
+  setScore(score + reward);
+  setMessage(`¡Cofre: ${reward} puntos!`);
   addBreak(body.position.x, body.position.y, "#ffd447", "★");
 }
 
@@ -1042,12 +1048,21 @@ function applySpecialFruitPhysics() {
       Body.applyForce(body, body.position, { x: body.mass * currentWeather.wind, y: 0 });
     }
     if (currentWeather.id === "rain") {
-      Body.applyForce(body, body.position, { x: 0, y: body.mass * 0.000045 });
+      Body.applyForce(body, body.position, {
+        x: -body.mass * body.velocity.x * 0.000012,
+        y: body.mass * 0.00013,
+      });
     }
     if (currentWeather.id === "storm") {
       Body.applyForce(body, body.position, {
-        x: body.mass * Math.sin(stormPhase) * 0.00013,
-        y: body.mass * Math.cos(stormPhase * 0.7) * 0.000035,
+        x: body.mass * Math.sin(stormPhase) * 0.00048,
+        y: body.mass * (0.00007 + Math.cos(stormPhase * 0.7) * 0.00012),
+      });
+    }
+    if (currentWeather.id === "snow") {
+      Body.applyForce(body, body.position, {
+        x: -body.mass * body.velocity.x * 0.000018,
+        y: -body.mass * body.velocity.y * 0.000006,
       });
     }
 
@@ -1082,11 +1097,86 @@ function applySpecialFruitPhysics() {
     }
   });
   eatFruitNearPlant();
+  updateEnemyHazards();
+}
+
+function updateEnemyHazards() {
+  const now = performance.now();
+  Composite.allBodies(engine.world).forEach((body) => {
+    if (body.label !== "vegetable" || body.game.broken) return;
+    if (body.game.isGhost) {
+      const hidden = Math.sin(now / 650 + body.id) > 0.2;
+      body.game.ghostHidden = hidden;
+      body.collisionFilter.mask = hidden ? 0 : 0xffffffff;
+    }
+    if (body.game.isHealer && now > body.game.nextSpecialAt) {
+      body.game.nextSpecialAt = now + 2200;
+      Composite.allBodies(engine.world).filter((target) => target.label === "vegetable" && !target.game.broken).forEach((target) => {
+        if (Vector.magnitude(Vector.sub(target.position, body.position)) < scale(180)) {
+          target.game.health = Math.min(target.game.maxHealth, target.game.health + target.game.maxHealth * 0.1);
+        }
+      });
+      addBreak(body.position.x, body.position.y, "#7dff9a", "+");
+    }
+    if (body.game.isNinja && currentFruit?.wasLaunched && now > body.game.nextSpecialAt && Vector.magnitude(Vector.sub(body.position, currentFruit.position)) < scale(150)) {
+      body.game.nextSpecialAt = now + 2600;
+      Body.setPosition(body, { x: Math.min(width - 60, body.position.x + scale(90)), y: body.position.y - scale(30) });
+      setMessage("¡Verdura ninja!");
+    }
+  });
+  const keyFruit = levelKey && !keyCollected
+    ? Composite.allBodies(engine.world).find(
+      (body) => body.label === "fruit" && body.wasLaunched && Vector.magnitude(Vector.sub(body.position, levelKey)) < scale(45),
+    )
+    : null;
+  if (keyFruit) {
+    keyCollected = true;
+    collectedKeyCount += 1;
+    const melonWasLocked = !unlockedFruitIds.has("melon");
+    const orangeWasLocked = !unlockedFruitIds.has("naranja");
+    unlockedFruitIds.add("melon");
+    if (collectedKeyCount >= 2) unlockedFruitIds.add("naranja");
+    persistPlayerProgress();
+    updateFruitTray();
+    if (collectedKeyCount >= 2 && orangeWasLocked) {
+      setMessage("¡Segunda llave! ¡Naranja de Zumo desbloqueada!");
+    } else if (melonWasLocked) {
+      setMessage("¡Llave encontrada! ¡Melon de Fuego desbloqueado!");
+    } else {
+      setMessage("¡Llave encontrada! Jaula abierta");
+    }
+    addBreak(levelKey.x, levelKey.y, "#ffd447", "★");
+  }
+  if (launched && now > nextWorldHazardAt) {
+    const isIceWorld = currentLevel >= 21 && currentLevel <= 25;
+    const isSpaceWorld = currentLevel >= 31;
+    if (isIceWorld || isSpaceWorld) {
+      nextWorldHazardAt = now + (isSpaceWorld ? 2400 : 3300);
+      const hazard = Bodies.circle(width * (0.52 + Math.random() * 0.4), -30, scale(isSpaceWorld ? 18 : 28), {
+        label: isSpaceWorld ? "meteor" : "snowball", density: preserveMassDensity(0.008), restitution: 0.35,
+        render: { visible: false },
+      });
+      Body.setVelocity(hazard, { x: -2 - Math.random() * 3, y: 5 });
+      Composite.add(engine.world, hazard);
+    }
+  }
+  if (!launched || now < nextCannonShotAt || !currentFruit?.wasLaunched) return;
+  nextCannonShotAt = now + 2800;
+  cannons.forEach((cannon) => {
+    const ball = Bodies.circle(cannon.x, cannon.y, scale(11), {
+      label: "cannonBall", density: preserveMassDensity(0.006), restitution: 0.65,
+      render: { visible: false },
+    });
+    const direction = Vector.normalise(Vector.sub(currentFruit.position, cannon));
+    Body.setVelocity(ball, { x: direction.x * 8, y: direction.y * 8 - 2 });
+    Composite.add(engine.world, ball);
+    playCollisionSound();
+  });
 }
 
 function clearLevelBodies({ clearTimers = true } = {}) {
   Composite.allBodies(engine.world).forEach((body) => {
-    if (["block", "glassBlock", "steelBlock", "vegetable", "fruit", "seed", "tnt", "plant"].includes(body.label)) {
+    if (["block", "glassBlock", "iceBlock", "gelBlock", "steelBlock", "vegetable", "fruit", "seed", "fire", "tnt", "plant", "cannonBall", "meteor", "snowball", "cactus"].includes(body.label)) {
       Composite.remove(engine.world, body);
     }
   });
@@ -1096,6 +1186,8 @@ function clearLevelBodies({ clearTimers = true } = {}) {
   }
   currentFruit = null;
   plant = null;
+  cannons = [];
+  levelKey = null;
   levelBodies = [];
   structureActivated = false;
   structureActivatedAt = 0;
@@ -1113,11 +1205,6 @@ function finishLevel() {
     setMessage(`¡Limpieza perfecta! +${bonus} puntos`);
   } else {
     setMessage(`¡Nivel ${currentLevel} completado!`);
-  }
-  const earnedExtraLife = currentLevel % 10 === 0;
-  if (earnedExtraLife) {
-    lives += 1;
-    updateLives();
   }
   const nextLevel = currentLevel + 1;
   playLevelSound();
@@ -1147,8 +1234,6 @@ function finishLevel() {
     if (currentLevel % 5 === 0) {
       setMessage("¡Un jefe protege este nivel!");
       playKingLaugh();
-    } else if (earnedExtraLife) {
-      setMessage(`¡Vida extra! Ya tienes ${lives} vidas`);
     } else if (newlyUnlocked.length) {
       setMessage(`¡Nueva fruta: ${newlyUnlocked.join(" y ")}!`);
     } else {
@@ -1160,6 +1245,46 @@ function finishLevel() {
 function activatePower(fruitBody) {
   if (!fruitBody || !fruitBody.game) return;
   const isDragon = fruitBody.game.id === "dragon";
+
+  if (fruitBody.game.id === "fresa") {
+    addPowerTimer(() => {
+      if (!Composite.get(engine.world, fruitBody.id, "body") || fruitBody.inflated) return;
+      fruitBody.inflated = true;
+      Body.scale(fruitBody, 1.75, 1.75);
+      fruitBody.game = { ...fruitBody.game, radius: fruitBody.game.radius * 1.75 };
+      Body.setVelocity(fruitBody, {
+        x: fruitBody.velocity.x * 1.08,
+        y: fruitBody.velocity.y - 1.4,
+      });
+      addBreak(fruitBody.position.x, fruitBody.position.y, "#ff6f8a", "¡PLOP!");
+      setMessage("¡La fresa se inflo!");
+    }, 280);
+  }
+
+  if (fruitBody.game.id === "naranja") {
+    addPowerTimer(() => {
+      if (!Composite.get(engine.world, fruitBody.id, "body")) return;
+      fruitBody.juiceMode = true;
+      fruitBody.game = { ...fruitBody.game, emoji: "🧃" };
+      addBreak(fruitBody.position.x, fruitBody.position.y, "#ffad2f", "💦");
+      setMessage("¡La naranja se convirtio en zumo!");
+    }, 360);
+    addPowerTimer(() => explodeJuice(fruitBody), 1050);
+  }
+
+  if (fruitBody.game.id === "melon") {
+    for (let i = 0; i < 5; i += 1) {
+      addPowerTimer(() => {
+        if (!Composite.get(engine.world, fruitBody.id, "body")) return;
+        const fire = makeFireball(fruitBody.position.x + scale(18), fruitBody.position.y, {
+          x: Math.max(10, fruitBody.velocity.x + 7 + i * 0.7),
+          y: fruitBody.velocity.y * 0.35 + (i - 2) * 0.8,
+        });
+        addBreak(fire.position.x, fire.position.y, "#ff7a24", "🔥");
+      }, 180 + i * 130);
+    }
+    setMessage("¡Melon de Fuego!");
+  }
 
   if (fruitBody.game.id === "pera" || isDragon) {
     addPowerTimer(() => {
@@ -1188,7 +1313,7 @@ function activatePower(fruitBody) {
       if (!isDragon) Composite.remove(engine.world, fruitBody);
       addBreak(x, y, isDragon ? "#f04f9b" : "#ffb02e", isDragon ? "✦" : "🍊");
 
-      const fragmentCount = 5 + (isDragon ? 3 : (powerUpgrades.mandarina || 0));
+      const fragmentCount = isDragon ? 8 : 5;
       for (let i = 0; i < fragmentCount; i += 1) {
         const angle = -0.72 + i * (1.44 / Math.max(1, fragmentCount - 1));
         const speed = 5.8 + Math.abs(base.x) * 0.38;
@@ -1210,7 +1335,7 @@ function activatePower(fruitBody) {
       if (!Composite.get(engine.world, fruitBody.id, "body")) return;
       const base = { x: Math.max(6, fruitBody.velocity.x), y: fruitBody.velocity.y };
 
-      const seedCount = 6 + (isDragon ? 4 : (powerUpgrades.manzana || 0) * 2);
+      const seedCount = isDragon ? 10 : 6;
       for (let i = 0; i < seedCount; i += 1) {
         const spread = (i - (seedCount - 1) / 2) * 0.7;
         const seed = makeSeed(fruitBody.position.x + 18, fruitBody.position.y + spread * 4, {
@@ -1226,8 +1351,8 @@ function activatePower(fruitBody) {
 
   if (fruitBody.game.id === "sandia") {
     Body.setVelocity(fruitBody, {
-      x: fruitBody.velocity.x * 0.92 + 1.4,
-      y: Math.max(-1.5, fruitBody.velocity.y * 0.16),
+      x: fruitBody.velocity.x * 1.32 + 2.4,
+      y: Math.max(-6.2, fruitBody.velocity.y * 0.72),
     });
     Body.setAngularVelocity(fruitBody, 0.42);
     setMessage("¡Sandia pesada!");
@@ -1246,7 +1371,7 @@ function activatePower(fruitBody) {
       addBreak(x, y, isDragon ? "#f04f9b" : "#9b5de5", isDragon ? "💥" : "🍇");
       const grapeGroup = Body.nextGroup(true);
 
-      const grapeCount = 7 + (isDragon ? 5 : (powerUpgrades.uvas || 0) * 2);
+      const grapeCount = isDragon ? 12 : 7;
       for (let i = 0; i < grapeCount; i += 1) {
         const angle = -0.85 + i * (1.7 / Math.max(1, grapeCount - 1));
         const grape = makeFlyingFruit(x, y, { ...fruitBody.game, id: "dragonBomb", grapeBomb: true, emoji: "●" }, scale(11), {
@@ -1273,8 +1398,8 @@ function triggerBananaBoomerang() {
   if (!boomerangFruit) return;
   boomerangFruit.boomerangUsed = true;
   Body.setVelocity(boomerangFruit, {
-    x: -Math.max(12, Math.abs(boomerangFruit.velocity.x) * (1.2 + (powerUpgrades.banana || 0) * 0.12) + 3),
-    y: Math.min(-4, boomerangFruit.velocity.y - 5.5 - (powerUpgrades.banana || 0)),
+    x: -Math.max(12, Math.abs(boomerangFruit.velocity.x) * 1.2 + 3),
+    y: Math.min(-4, boomerangFruit.velocity.y - 5.5),
   });
   Body.setAngularVelocity(boomerangFruit, -0.9);
   addBreak(boomerangFruit.position.x, boomerangFruit.position.y, boomerangFruit.game.color, "↩");
@@ -1303,6 +1428,37 @@ function explodeGrape(body) {
       breakBuildingBlock(target);
     }
   });
+}
+
+function explodeJuice(body) {
+  if (!body || body.juiceExploded || !Composite.get(engine.world, body.id, "body")) return;
+  body.juiceExploded = true;
+  const origin = { ...body.position };
+  Composite.remove(engine.world, body);
+  addBreak(origin.x, origin.y, "#ff941f", "💥");
+  addBreak(origin.x, origin.y, "#ffd45c", "💦");
+  playBreakSound();
+
+  Composite.allBodies(engine.world).forEach((target) => {
+    const offset = Vector.sub(target.position, origin);
+    const distance = Vector.magnitude(offset);
+    if (distance > scale(135) || target.label === "steelBlock") return;
+    if (!target.isStatic && distance > 0) {
+      const direction = Vector.normalise(offset);
+      Body.applyForce(target, target.position, {
+        x: direction.x * 0.025,
+        y: direction.y * 0.025 - 0.012,
+      });
+    }
+    if (target.label === "vegetable") {
+      damageVegetable(target, Math.max(35, (1 - distance / scale(135)) * 260), body);
+    } else if (target.label === "block") {
+      damageWoodBlock(target, Math.max(30, (1 - distance / scale(135)) * 190), body);
+    } else if (["glassBlock", "iceBlock"].includes(target.label)) {
+      breakBuildingBlock(target);
+    }
+  });
+  setMessage("¡Explosion de zumo!");
 }
 
 function eatFruitNearPlant() {
@@ -1343,7 +1499,7 @@ function nextFruit() {
 function resetFruitsAfterLife() {
   clearPowerTimers();
   Composite.allBodies(engine.world).forEach((body) => {
-    if (["fruit", "seed"].includes(body.label)) {
+    if (["fruit", "seed", "fire"].includes(body.label)) {
       Composite.remove(engine.world, body);
     }
   });
@@ -1374,7 +1530,7 @@ function updateFruitTray() {
     card.classList.toggle("active", index === currentFruitIndex && !isUsed && !isLocked && !launched);
     card.classList.toggle("used", isUsed);
     card.classList.toggle("locked", isLocked);
-    card.classList.toggle("unlocked", ["sandia", "uvas", "dragon"].includes(fruit.id) && !isLocked && !isUsed);
+    card.classList.toggle("unlocked", ["sandia", "uvas", "dragon", "melon", "fresa", "naranja"].includes(fruit.id) && !isLocked && !isUsed);
     card.classList.toggle("powered", fruit.id === "pera" && hasPearFallPower() && !isUsed);
     card.disabled = isLocked || isUsed || launched || levelChanging;
   });
@@ -1411,6 +1567,10 @@ function drawLabels() {
     if (body.label === "seed") {
       drawSeed(ctx, body);
     }
+    if (body.label === "fire") {
+      ctx.font = `${scale(26)}px serif`;
+      ctx.fillText("🔥", body.position.x, body.position.y);
+    }
     if (body.label === "tnt") {
       drawTnt(ctx, body);
     }
@@ -1420,11 +1580,21 @@ function drawLabels() {
     if (body.label === "glassBlock") {
       drawGlassBlock(ctx, body);
     }
+    if (body.label === "iceBlock") drawIceBlock(ctx, body);
+    if (body.label === "gelBlock") drawGelBlock(ctx, body);
+    if (body.label === "cannonBall") drawCannonBall(ctx, body);
+    if (["meteor", "snowball"].includes(body.label)) drawWorldHazard(ctx, body);
+    if (body.label === "cactus") drawCactus(ctx, body);
     if (body.label === "chest") drawChest(ctx, body);
   });
 
   drawPlant(ctx);
   drawPortals(ctx);
+  drawCannons(ctx);
+  if (levelKey && !keyCollected) {
+    ctx.font = `${scale(42)}px serif`;
+    ctx.fillText("🔑", levelKey.x, levelKey.y);
+  }
 
   if (currentFruit && !launched) {
     const guideSize = scale(92);
@@ -1440,6 +1610,61 @@ function drawLabels() {
   }
 
   ctx.restore();
+}
+
+function drawGelBlock(ctx, body) {
+  ctx.save();
+  ctx.translate(body.position.x, body.position.y);
+  ctx.rotate(body.angle);
+  ctx.fillStyle = "rgba(238, 76, 190, 0.72)";
+  ctx.strokeStyle = "#ffb6e8";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.roundRect(-body.game.width / 2, -body.game.height / 2, body.game.width, body.game.height, 10);
+  ctx.fill(); ctx.stroke(); ctx.restore();
+}
+
+function drawWorldHazard(ctx, body) {
+  ctx.fillStyle = body.label === "meteor" ? "#75504a" : "#eafcff";
+  ctx.beginPath(); ctx.arc(body.position.x, body.position.y, body.circleRadius, 0, Math.PI * 2); ctx.fill();
+}
+
+function drawCactus(ctx, body) {
+  ctx.save(); ctx.translate(body.position.x, body.position.y);
+  ctx.fillStyle = "#2f9b58";
+  ctx.fillRect(-10, -50, 20, 100);
+  ctx.fillRect(-28, -20, 56, 16);
+  ctx.restore();
+}
+
+function drawIceBlock(ctx, body) {
+  ctx.save();
+  ctx.translate(body.position.x, body.position.y);
+  ctx.rotate(body.angle);
+  ctx.fillStyle = "rgba(190, 244, 255, 0.78)";
+  ctx.strokeStyle = "#f5feff";
+  ctx.lineWidth = 3;
+  ctx.fillRect(-body.game.width / 2, -body.game.height / 2, body.game.width, body.game.height);
+  ctx.strokeRect(-body.game.width / 2, -body.game.height / 2, body.game.width, body.game.height);
+  ctx.restore();
+}
+
+function drawCannons(ctx) {
+  cannons.forEach((cannon) => {
+    ctx.fillStyle = "#30353b";
+    ctx.fillRect(cannon.x - 25, cannon.y - 12, 42, 24);
+    ctx.fillStyle = "#171a1d";
+    ctx.beginPath();
+    ctx.arc(cannon.x + 18, cannon.y, 13, 0, Math.PI * 2);
+    ctx.fill();
+  });
+}
+
+function drawCannonBall(ctx, body) {
+  ctx.fillStyle = "#22272d";
+  ctx.beginPath();
+  ctx.arc(body.position.x, body.position.y, scale(11), 0, Math.PI * 2);
+  ctx.fill();
 }
 
 function drawChest(ctx, body) {
@@ -1653,8 +1878,6 @@ function drawAngryFruit(ctx, body) {
     ctx.restore();
   }
 
-  drawCostumeBehind(ctx, x, y, radius, body.angle);
-
   ctx.font = `${Math.max(24, radius * 1.35)}px serif`;
   ctx.fillText(body.game.emoji, x, y + 1);
 
@@ -1683,74 +1906,11 @@ function drawAngryFruit(ctx, body) {
   ctx.quadraticCurveTo(0, 6 * faceScale, 8 * faceScale, 12 * faceScale);
   ctx.stroke();
   ctx.restore();
-  drawCostumeFront(ctx, x, y, radius, body.angle);
-}
-
-function drawCostumeBehind() {}
-
-function drawCostumeFront(ctx, x, y, radius, angle) {
-  if (selectedCostumeId === "normal") return;
-  ctx.save();
-  ctx.translate(x, y);
-  ctx.rotate(angle * 0.25);
-  ctx.lineJoin = "round";
-  ctx.lineWidth = Math.max(2, radius * 0.09);
-  ctx.strokeStyle = "#3b2135";
-
-  if (selectedCostumeId === "party") {
-    ctx.fillStyle = "#ff4f85";
-    ctx.beginPath();
-    ctx.moveTo(-radius * 0.55, -radius * 0.75);
-    ctx.lineTo(radius * 0.2, -radius * 1.75);
-    ctx.lineTo(radius * 0.55, -radius * 0.72);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = "#ffd447";
-    ctx.beginPath();
-    ctx.arc(radius * 0.22, -radius * 1.78, radius * 0.18, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (selectedCostumeId === "crown") {
-    ctx.fillStyle = "#ffd447";
-    ctx.beginPath();
-    ctx.moveTo(-radius * 0.7, -radius * 0.72);
-    ctx.lineTo(-radius * 0.62, -radius * 1.55);
-    ctx.lineTo(-radius * 0.2, -radius * 1.08);
-    ctx.lineTo(0, -radius * 1.65);
-    ctx.lineTo(radius * 0.25, -radius * 1.08);
-    ctx.lineTo(radius * 0.65, -radius * 1.55);
-    ctx.lineTo(radius * 0.7, -radius * 0.72);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-  } else if (selectedCostumeId === "cape") {
-    ctx.fillStyle = "#e83f5b";
-    ctx.beginPath();
-    ctx.moveTo(-radius * 0.7, -radius * 0.72);
-    ctx.quadraticCurveTo(0, -radius * 1.65, radius * 0.7, -radius * 0.72);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = "#ffd447";
-    ctx.beginPath();
-    ctx.arc(0, -radius * 1.04, radius * 0.2, 0, Math.PI * 2);
-    ctx.fill();
-  } else if (selectedCostumeId === "space") {
-    ctx.fillStyle = "#edf9ff";
-    ctx.beginPath();
-    ctx.arc(0, -radius * 1.02, radius * 0.72, Math.PI, 0);
-    ctx.lineTo(radius * 0.72, -radius * 0.68);
-    ctx.lineTo(-radius * 0.72, -radius * 0.68);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = "#56c7e8";
-    ctx.fillRect(-radius * 0.32, -radius * 1.62, radius * 0.64, radius * 0.22);
-  }
-  ctx.restore();
 }
 
 function drawScaredVegetable(ctx, body) {
+  ctx.save();
+  if (body.game.isGhost) ctx.globalAlpha = body.game.ghostHidden ? 0.16 : 0.72;
   const radius = body.circleRadius || body.game.size || 24;
   const x = body.position.x;
   const y = body.position.y;
@@ -1762,6 +1922,17 @@ function drawScaredVegetable(ctx, body) {
     ctx.beginPath();
     ctx.arc(x, y, radius * 1.28, 0, Math.PI * 2);
     ctx.stroke();
+  }
+  if (body.game.isCaged && !keyCollected) {
+    ctx.strokeStyle = "#7e8791";
+    ctx.lineWidth = 4;
+    for (let offset = -radius; offset <= radius; offset += radius) {
+      ctx.beginPath(); ctx.moveTo(x + offset, y - radius * 1.3); ctx.lineTo(x + offset, y + radius * 1.3); ctx.stroke();
+    }
+  }
+  if (body.game.isHealer || body.game.isNinja) {
+    ctx.font = `${Math.max(16, radius * 0.7)}px serif`;
+    ctx.fillText(body.game.isHealer ? "✚" : "★", x, y - radius - 23);
   }
 
   if (body.game.isKing) {
@@ -1804,6 +1975,7 @@ function drawScaredVegetable(ctx, body) {
   ctx.fillRect(x - barWidth / 2 - 2, barY - 2, barWidth + 4, 8);
   ctx.fillStyle = healthRatio > 0.55 ? "#42d66b" : healthRatio > 0.25 ? "#ffd447" : "#ef4d3f";
   ctx.fillRect(x - barWidth / 2, barY, barWidth * healthRatio, 4);
+  ctx.restore();
 }
 
 function drawSeed(ctx, body) {
@@ -1890,24 +2062,31 @@ function setupCollisions() {
       const veggie = bodies.map(getVegetableBody).find(Boolean);
       const fruit = bodies.map(getFruitBody).find(Boolean);
       const seed = bodies.find((body) => body.label === "seed");
+      const fire = bodies.find((body) => body.label === "fire");
       const block = bodies.find((body) => body.label === "block");
       const glassBlock = bodies.find((body) => body.label === "glassBlock");
+      const iceBlock = bodies.find((body) => body.label === "iceBlock");
       const steelBlock = bodies.find((body) => body.label === "steelBlock");
       const tnt = bodies.find((body) => body.label === "tnt");
       const chest = bodies.find((body) => body.label === "chest");
+      const worldHazard = bodies.find((body) => ["meteor", "snowball"].includes(body.label));
       const speed = fruit ? Vector.magnitude(fruit.velocity) : Math.max(pair.bodyA.speed, pair.bodyB.speed);
       const hitSpeed = Math.max(pair.bodyA.speed, pair.bodyB.speed);
       const launchedFruit = fruit?.wasLaunched ? fruit : null;
-      const projectile = launchedFruit || seed;
-      const structureBody = veggie || block || glassBlock || steelBlock || tnt || chest;
+      const projectile = launchedFruit || seed || fire;
+      const structureBody = veggie || block || glassBlock || iceBlock || steelBlock || tnt || chest;
 
       if (levelHasStarted && projectile && structureBody) {
         activateStructure(structureBody, { ...projectile.velocity });
       }
 
       const grapeHitSurface = bodies.some((body) =>
-        ["ground", "block", "glassBlock", "steelBlock", "vegetable", "tnt"].includes(body.label),
+        ["ground", "block", "glassBlock", "iceBlock", "steelBlock", "vegetable", "tnt"].includes(body.label),
       );
+      if (launchedFruit?.juiceMode && grapeHitSurface && hitSpeed > 1.2) {
+        explodeJuice(launchedFruit);
+        return;
+      }
       if (launchedFruit?.game?.grapeBomb && grapeHitSurface && hitSpeed > 1.4) {
         explodeGrape(launchedFruit);
         return;
@@ -1926,8 +2105,20 @@ function setupCollisions() {
         return;
       }
 
-      if (glassBlock && launchedFruit && hitSpeed > 2.2) {
+      if (steelBlock && fire) {
+        Composite.remove(engine.world, fire);
+        setMessage("El fuego no derrite el acero");
+        return;
+      }
+
+      if (glassBlock && ((launchedFruit && hitSpeed > 2.2) || fire)) {
         breakBuildingBlock(glassBlock);
+        if (fire) Composite.remove(engine.world, fire);
+        return;
+      }
+      if (iceBlock && ((launchedFruit && hitSpeed > 1.7) || fire)) {
+        breakBuildingBlock(iceBlock);
+        if (fire) Composite.remove(engine.world, fire);
         return;
       }
 
@@ -1942,6 +2133,11 @@ function setupCollisions() {
       if (block && seed && seed.speed > 2.2) {
         damageWoodBlock(block, collisionEnergy(seed, block), seed);
         Composite.remove(engine.world, seed);
+        return;
+      }
+      if (block && fire) {
+        damageWoodBlock(block, 85, fire);
+        Composite.remove(engine.world, fire);
         return;
       }
 
@@ -1959,8 +2155,13 @@ function setupCollisions() {
         damageVegetable(veggie, collisionEnergy(launchedFruit, veggie), launchedFruit);
       } else if (veggie && seed && seed.speed > 3.3) {
         damageVegetable(veggie, collisionEnergy(seed, veggie), seed);
+      } else if (veggie && fire) {
+        damageVegetable(veggie, 95, fire);
+        Composite.remove(engine.world, fire);
       } else if (levelHasStarted && veggie && block && block.speed > 3.2) {
         damageVegetable(veggie, collisionEnergy(block, veggie), block);
+      } else if (levelHasStarted && veggie && worldHazard && worldHazard.speed > 2.5) {
+        damageVegetable(veggie, collisionEnergy(worldHazard, veggie), worldHazard);
       } else if (levelHasStarted && veggie && bodies.some((body) => body.label === "ground") && veggie.speed > 2.2) {
         damageVegetable(veggie, 0.5 * veggie.mass * veggie.speed * veggie.speed * 0.9);
       }
@@ -2123,35 +2324,31 @@ function drawBackground() {
 
 function drawWeatherEffects(ctx) {
   const time = performance.now() / 18;
-  if (["windRight", "windLeft"].includes(currentWeather.id)) {
-    const direction = currentWeather.id === "windRight" ? 1 : -1;
-    ctx.strokeStyle = "rgba(220, 247, 255, 0.42)";
-    ctx.lineWidth = 2;
-    for (let i = 0; i < 18; i += 1) {
-      const x = ((i * 137 + time * direction * 2.4) % (width + 180)) - 90;
-      const y = 70 + ((i * 83) % Math.max(120, height - 150));
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x + direction * (34 + (i % 4) * 9), y - 3);
-      ctx.stroke();
-    }
-  }
-
   if (["rain", "storm"].includes(currentWeather.id)) {
-    ctx.strokeStyle = currentWeather.id === "storm" ? "rgba(184, 220, 255, 0.62)" : "rgba(190, 232, 255, 0.48)";
-    ctx.lineWidth = 2;
+    ctx.fillStyle = currentWeather.id === "storm" ? "rgba(184, 220, 255, 0.68)" : "rgba(190, 232, 255, 0.62)";
     const drops = currentWeather.id === "storm" ? 70 : 42;
     for (let i = 0; i < drops; i += 1) {
       const x = (i * 97 + time * 3.5) % (width + 80) - 40;
       const y = (i * 61 + time * 5.2) % height;
       ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x - 8, y + 18);
-      ctx.stroke();
+      ctx.ellipse(x, y, 2.2, 6.5, 0.35, 0, Math.PI * 2);
+      ctx.fill();
     }
     if (currentWeather.id === "storm" && Math.sin(performance.now() / 430) > 0.96) {
       ctx.fillStyle = "rgba(230, 241, 255, 0.16)";
       ctx.fillRect(0, 0, width, height * 0.62);
+    }
+  }
+
+  if (currentWeather.id === "snow") {
+    ctx.fillStyle = "rgba(244, 252, 255, 0.88)";
+    for (let i = 0; i < 48; i += 1) {
+      const sway = Math.sin(time * 0.025 + i) * 18;
+      const x = (i * 83 + sway) % (width + 40) - 20;
+      const y = (i * 47 + time * (0.7 + (i % 3) * 0.14)) % height;
+      ctx.beginPath();
+      ctx.arc(x, y, 2 + (i % 3), 0, Math.PI * 2);
+      ctx.fill();
     }
   }
 }
@@ -2185,7 +2382,7 @@ function startGame({ preserveScore = false } = {}) {
   currentFruitIndex = 0;
   usedFruitIds = new Set();
   fruitUseCounts = new Map();
-  unlockedFruitIds = new Set(["banana", "mandarina"]);
+  unlockedFruitIds = loadUnlockedFruits();
   if (!preserveScore) {
     announcedFruitIds = new Set();
     pearPowerAnnounced = false;
@@ -2242,28 +2439,9 @@ resetButton.addEventListener("click", () => {
 canvas.addEventListener("pointerdown", () => {
   if (launched && !levelChanging) triggerBananaBoomerang();
 });
-scoreForm.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const submitButton = scoreForm.querySelector("button");
-  submitButton.disabled = true;
-  scoreStatus.textContent = "Guardando...";
-  try {
-    await submitScore(playerNameInput.value, score);
-    scoreStatus.textContent = "¡Puntuacion guardada!";
-    playerNameInput.disabled = true;
-    await renderLeaderboard(gameLeaderboard);
-  } catch (error) {
-    scoreStatus.textContent = error.message;
-    submitButton.disabled = false;
-  }
-});
 gameOverDialog.addEventListener("cancel", (event) => event.preventDefault());
-costumeButton.addEventListener("click", () => {
-  renderCostumeGrid();
-  renderUpgradeGrid();
-  costumeDialog.showModal();
-});
-closeCostumeButton.addEventListener("click", () => costumeDialog.close());
+homeButton.addEventListener("click", () => persistPlayerProgress());
+document.querySelector("#headerHomeButton").addEventListener("click", persistPlayerProgress);
 replayButton.addEventListener("click", () => {
   if (bestTrajectory.length < 2) return;
   replayStartedAt = performance.now();
@@ -2277,9 +2455,7 @@ window.addEventListener("resize", () => {
   window.clearTimeout(window.resizeGameTimer);
   window.resizeGameTimer = window.setTimeout(() => startGame({ preserveScore: true }), 250);
 });
+window.addEventListener("pagehide", persistPlayerProgress);
 
 updateLives();
-renderCostumeGrid();
-renderUpgradeGrid();
-coinsEl.textContent = String(coins);
 startGame();

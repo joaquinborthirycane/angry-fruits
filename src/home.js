@@ -1,7 +1,3 @@
-import { renderLeaderboard } from "./ranking.js?v=20261018-2";
-
-renderLeaderboard(document.querySelector("#homeLeaderboard"));
-
 let highestLevel = 1;
 try {
   highestLevel = Math.max(1, Number(window.localStorage.getItem("super-frutas-highest-level")) || 1);
