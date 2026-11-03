@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20261102-24" />
+    <link rel="stylesheet" href="styles.css?v=20261103-32" />
   </head>
   <body>
     <main class="game-shell">
@@ -39,6 +39,7 @@
         <button id="resetButton" class="reset-button" type="button">Reiniciar</button>
       </section>
 
+      <p id="difficultyIndicator" class="difficulty-indicator">🌻 Aventura</p>
       <section class="stage-wrap" aria-label="Escenario de Super Frutas al Rescate">
         <canvas id="gameCanvas"></canvas>
         <div class="world-scenery" aria-hidden="true"></div>
@@ -59,6 +60,14 @@
         <button class="fruit-card locked" data-fruit="melon" type="button">🔒 <span>Melon de Fuego</span></button>
         <button class="fruit-card locked" data-fruit="fresa" type="button">🔒 <span>Fresa</span></button>
         <button class="fruit-card locked" data-fruit="naranja" type="button">🔒 <span>Naranja de Zumo</span></button>
+        <button class="fruit-card locked" data-fruit="limon" type="button">🔒 <span>Limón Ácido</span></button>
+        <button class="fruit-card locked" data-fruit="coco" type="button">🔒 <span>Coco Explosivo</span></button>
+        <button class="fruit-card locked" data-fruit="arandanos" type="button">🔒 <span>Arándanos Mini</span></button>
+        <button class="fruit-card locked" data-fruit="pina" type="button">🔒 <span>Piña Lanzahojas</span></button>
+        <button class="fruit-card locked" data-fruit="cerezas" type="button">🔒 <span>Cerezas Gemelas</span></button>
+        <button class="fruit-card locked" data-fruit="kiwi" type="button">🔒 <span>Kiwi Tornado</span></button>
+        <button class="fruit-card locked" data-fruit="mango" type="button">🔒 <span>Mango Pegajoso</span></button>
+        <button class="fruit-card locked" data-fruit="melocoton" type="button">🔒 <span>Melocotón Saltarín</span></button>
       </section>
     </main>
 
@@ -72,6 +81,6 @@
     </dialog>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
-    <script type="module" src="src/game.js?v=20261102-47"></script>
+    <script type="module" src="src/game.js?v=20261103-59"></script>
   </body>
 </html>

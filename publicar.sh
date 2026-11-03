@@ -4,7 +4,7 @@ set -eu
 
 cd "$(dirname "$0")"
 
-for file in index.html game.html styles.css src/game.js; do
+for file in index.html game.html styles.css home.css src/game.js src/home.js; do
   if [ ! -f "$file" ]; then
     echo "Falta un archivo necesario: $file" >&2
     exit 1

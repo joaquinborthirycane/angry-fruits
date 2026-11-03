@@ -12,24 +12,43 @@
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20261102-25" />
+    <link rel="stylesheet" href="styles.css?v=20261103-32" />
+    <link rel="stylesheet" href="home.css?v=20261103-1" />
   </head>
   <body class="start-page">
-    <main class="start-screen">
-      <div class="start-sun" aria-hidden="true"></div>
-      <div class="start-storm" aria-hidden="true"></div>
-
-      <section class="start-copy" aria-labelledby="gameTitle">
-        <p class="start-kicker">by Codo77</p>
-        <h1 id="gameTitle">Super Frutas<br />al Rescate</h1>
-        <p class="start-subtitle">¡Prepara la catapulta y rescata el reino frutal!</p>
-        <div class="start-actions">
-          <a class="play-button" href="game.html">Jugar</a>
-          <a class="map-button" href="#worldMapTitle">Mapa</a>
+    <header class="home-header">
+      <a class="home-brand" href="index.html" aria-label="Super Frutas al Rescate, inicio"><span aria-hidden="true">🍊</span> Codo77<span class="brand-dot">.</span></a>
+      <nav aria-label="Navegación principal"><a href="#fruitTeam">Las frutas</a><a href="#worldMapTitle">Los mundos</a><a class="nav-mode" href="#chooseMode">Modo de juego ↗</a></nav>
+    </header>
+    <main>
+      <section class="start-screen" aria-labelledby="gameTitle">
+        <div class="start-copy">
+          <p class="hero-badge"><span aria-hidden="true">✦</span> ¡EL REINO FRUTAL TE NECESITA!</p>
+          <h1 id="gameTitle">Super Frutas<br /><span>al Rescate<span class="title-dot">!</span></span></h1>
+          <p class="start-subtitle">Pequeñas frutas. Grandes poderes.<br />¡Un frutazo puede cambiarlo todo!</p>
+          <div class="start-actions">
+            <a class="play-button" id="playButton" data-play-link href="game.html?modo=aventura"><span aria-hidden="true">▶</span> ¡A jugar!</a>
+            <a class="map-button" href="#worldMapTitle">Explorar mundos <span aria-hidden="true">↗</span></a>
+          </div>
+          <a class="hero-mode-link" href="#chooseMode">Modo: <span id="selectedMode">Normal</span> · Cambiar <span aria-hidden="true">↓</span></a>
+          <div class="hero-facts"><span><b>18</b> frutas con poderes</span><span><b>14</b> mundos por descubrir</span></div>
+        </div>
+        <div class="hero-arena" aria-hidden="true">
+          <div class="arena-orbit"></div><div class="arena-sun"></div>
+          <span class="arena-cloud cloud-one">☁</span><span class="arena-cloud cloud-two">☁</span>
+          <span class="arena-spark spark-one">✦</span><span class="arena-spark spark-two">✦</span>
+          <svg class="flight-path" viewBox="0 0 600 500" fill="none"><path d="M100 390 Q100 60 470 190" stroke="#fff8d9" stroke-width="4" stroke-dasharray="2 15" stroke-linecap="round"/></svg>
+          <div class="arena-hill hill-back"></div><div class="arena-hill hill-front"></div>
+          <div class="hero-catapult"><i></i><i></i><i></i></div>
+          <span class="hero-mascot mascot-apple">🍎</span><span class="hero-mascot mascot-orange">🍊</span><span class="hero-mascot mascot-dragon">🐉</span>
+          <span class="power-sticker">¡FRUTAS AL PODER! ⚡</span>
+          <div class="arena-castle"><span>🥦</span><div class="castle-roof"></div><div class="castle-posts"></div><span class="castle-carrot">🥕</span></div>
+          <span class="arena-flower flower-one">✿</span><span class="arena-flower flower-two">✿</span>
+          <div class="arena-caption">ESTIRA. APUNTA. ¡FRUTAZO!</div>
         </div>
       </section>
-
-
+      <section class="fruit-team" id="fruitTeam" aria-labelledby="fruitTeamTitle">
+        <div class="section-heading"><div><p class="section-eyebrow">CONOCE A TU EQUIPO</p><h2 id="fruitTeamTitle">Una pandilla con mucho jugo<span>!</span></h2></div><p>Fuego, tornados, hojas y rebotes.<br />Cada fruta tiene su truco.</p></div>
       <div class="start-fruits" aria-hidden="true">
         <span class="start-fruit fruit-banana">🍌</span>
         <span class="start-fruit fruit-orange">🍊</span>
@@ -41,14 +60,25 @@
         <span class="start-fruit fruit-melon" title="Melón de Fuego">🍈</span>
         <span class="start-fruit fruit-strawberry" title="Fresa Inflable">🍓</span>
         <span class="start-fruit fruit-juice" title="Naranja de Zumo">🍊</span>
+        <span class="start-fruit fruit-lemon" title="Limón Ácido">🍋</span>
+        <span class="start-fruit fruit-coconut" title="Coco Explosivo">🥥</span>
+        <span class="start-fruit fruit-blueberry" title="Arándanos Mini">🫐</span>
+        <span class="start-fruit fruit-pineapple" title="Piña Lanzahojas">🍍</span>
+        <span class="start-fruit fruit-cerezas" title="Cerezas Gemelas">🍒</span>
+        <span class="start-fruit fruit-kiwi" title="Kiwi Tornado">🥝</span>
+        <span class="start-fruit fruit-mango" title="Mango Pegajoso">🥭</span>
+        <span class="start-fruit fruit-melocoton" title="Melocotón Saltarín">🍑</span>
       </div>
 
-      <div class="start-cliff" aria-hidden="true"></div>
-      <div class="start-enemies" aria-hidden="true">
-        <span>🥦</span><span>🥕</span><span>🍆</span>
-      </div>
-    </main>
-
+      </section>
+      <section class="mode-section" id="chooseMode" aria-labelledby="modeTitle">
+        <div class="mode-copy"><p class="section-eyebrow">TÚ ELIGES LA AVENTURA</p><h2 id="modeTitle">¿Cómo quieres jugar?</h2><p>Elige tu ritmo y prepara la catapulta.</p><a class="mode-play" data-play-link href="game.html?modo=aventura">¡Vamos allá! →</a></div>
+        <fieldset class="mode-picker">
+          <legend class="visually-hidden">Modo de juego</legend>
+          <label><input type="radio" name="difficulty" value="aventura" checked /><span class="mode-emoji" aria-hidden="true">🌻</span><span class="mode-name">Normal</span><small>6 vidas · movimientos suaves</small><span class="mode-description">Para explorar, practicar y pasarlo genial.</span></label>
+          <label><input type="radio" name="difficulty" value="desafio" /><span class="mode-emoji" aria-hidden="true">🔥</span><span class="mode-name">Desafío</span><small>4 vidas · más cascos y velocidad</small><span class="mode-description">¡Para valientes con buena puntería!</span></label>
+        </fieldset>
+      </section>
     <section class="world-map" aria-labelledby="worldMapTitle">
       <div class="world-map-heading">
         <p>Tu aventura</p>
@@ -89,10 +119,47 @@
         <article class="world-stop world-space" data-start-level="31">
           <span class="world-icon" aria-hidden="true">🪐</span>
           <strong>Huerta Espacial</strong>
-          <small>Nivel 31 en adelante</small>
+          <small>Niveles 31–35</small>
+        </article>
+        <article class="world-stop world-ocean" data-start-level="36">
+          <span class="world-icon" aria-hidden="true">🫧</span>
+          <strong>Océano Burbujeante</strong>
+          <small>Niveles 36–40</small>
+        </article>
+        <article class="world-stop world-candy" data-start-level="41">
+          <span class="world-icon" aria-hidden="true">🍬</span>
+          <strong>Reino de Caramelo</strong>
+          <small>Niveles 41–45</small>
+        </article>
+        <article class="world-stop world-sky" data-start-level="46">
+          <span class="world-icon" aria-hidden="true">🌈</span>
+          <strong>Islas del Arcoíris</strong>
+          <small>Niveles 46–50</small>
+        </article>
+        <article class="world-stop world-jungle" data-start-level="51">
+          <span class="world-icon" aria-hidden="true">🌴</span>
+          <strong>Selva Tropical</strong>
+          <small>Niveles 51–55</small>
+        </article>
+        <article class="world-stop world-music" data-start-level="56">
+          <span class="world-icon" aria-hidden="true">🎵</span>
+          <strong>Valle Musical</strong>
+          <small>Niveles 56–60</small>
+        </article>
+        <article class="world-stop world-crystal" data-start-level="61">
+          <span class="world-icon" aria-hidden="true">💎</span>
+          <strong>Cuevas de Cristal</strong>
+          <small>Niveles 61–65</small>
+        </article>
+        <article class="world-stop world-veggie-time" data-start-level="66">
+          <span class="world-icon" aria-hidden="true">🥦</span>
+          <strong>Verdura Time</strong>
+          <small>Nivel 66 · Gran final</small>
         </article>
       </div>
     </section>
-    <script type="module" src="src/home.js?v=20261102-1"></script>
+    </main>
+    <footer class="home-footer"><a class="home-brand" href="#gameTitle">🍊 Super Frutas al Rescate</a><span>Hecho con imaginación por Codo77 ✦</span><a href="#gameTitle">Volver arriba ↑</a></footer>
+    <script type="module" src="src/home.js?v=20261103-3"></script>
   </body>
 </html>

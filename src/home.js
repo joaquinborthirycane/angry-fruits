@@ -16,3 +16,16 @@ worldStops.forEach((stop, index) => {
   stop.classList.toggle("current", current);
   stop.setAttribute("aria-label", `${stop.querySelector("strong").textContent}: ${unlocked ? "desbloqueado" : `se desbloquea en el nivel ${startLevel}`}`);
 });
+
+const modeInputs = [...document.querySelectorAll('input[name="difficulty"]')];
+function selectMode(mode) {
+  const selected = mode === "desafio" ? "desafio" : "aventura";
+  modeInputs.forEach(input => { input.checked = input.value === selected; });
+  document.querySelectorAll("[data-play-link]").forEach(link => { link.href = `game.html?modo=${selected}`; });
+  document.querySelector("#selectedMode").textContent = selected === "desafio" ? "Desafío" : "Normal";
+  try { window.localStorage.setItem("super-frutas-mode", selected); } catch {}
+}
+let storedMode = "aventura";
+try { storedMode = window.localStorage.getItem("super-frutas-mode") || "aventura"; } catch {}
+selectMode(storedMode);
+modeInputs.forEach(input => input.addEventListener("change", () => selectMode(input.value)));

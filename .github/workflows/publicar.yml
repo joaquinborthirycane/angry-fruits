@@ -29,7 +29,7 @@ jobs:
       - name: Preparar archivos del juego
         run: |
           mkdir _site
-          cp index.html game.html styles.css _site/
+          cp index.html game.html styles.css home.css _site/
           cp -R src _site/src
           touch _site/.nojekyll
 
