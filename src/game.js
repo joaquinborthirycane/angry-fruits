@@ -1,3 +1,4 @@
+import { fruitPowers } from "./fruit-powers.js?v=20261106-5";
 
 const matter = window.Matter;
 
@@ -29,7 +30,7 @@ function loadDifficulty() {
 const difficulty = loadDifficulty();
 const isChallenge = difficulty === "desafio";
 document.querySelector("#difficultyIndicator").textContent = isChallenge ? "🔥 Desafío" : "🌻 Aventura";
-const FINAL_LEVEL = 66;
+const FINAL_LEVEL = 81;
 const PLAYER_PROFILE_KEY = "super-frutas-player-profile-v1";
 const WORLD_CATEGORY = 0x0001;
 const LOADED_FRUIT_CATEGORY = 0x0002;
@@ -73,16 +74,6 @@ const fruits = [
     unlockScore: 5000,
   },
   { id: "uvas", name: "Uvas Bomba", emoji: "🍇", color: "#7b3fc5", radius: scale(29), density: 0.002, unlockScore: 10000 },
-  {
-    id: "dragon",
-    name: "Fruta del Dragon",
-    emoji: "🐉",
-    color: "#f04f9b",
-    radius: scale(38),
-    density: 0.0042,
-    restitution: 0.38,
-    unlockScore: 15000,
-  },
   {
     id: "melon",
     name: "Melon de Fuego",
@@ -153,7 +144,7 @@ let levelHasStarted = false;
 let levelLaunchCount = 0;
 let usedFruitIds = new Set();
 let fruitUseCounts = new Map();
-let unlockedFruitIds = loadUnlockedFruits();
+let unlockedFruitIds = new Set(["banana", "mandarina"]);
 let announcedFruitIds = new Set();
 let pearPowerAnnounced = false;
 let audioContext;
@@ -179,49 +170,24 @@ let keyCollected = false;
 let gardenTricks = { fly: null, worm: null, mushrooms: [], peels: [] };
 let movingPlatforms = [];
 let fruitLinks = [];
-let collectedKeyCount = loadCollectedKeyCount();
-if (collectedKeyCount >= 1) unlockedFruitIds.add("melon");
-if (collectedKeyCount >= 2) unlockedFruitIds.add("naranja");
-if (collectedKeyCount >= 3) unlockedFruitIds.add("fresa");
-if (collectedKeyCount >= 4) unlockedFruitIds.add("limon");
-if (collectedKeyCount >= 5) unlockedFruitIds.add("coco");
-if (collectedKeyCount >= 6) unlockedFruitIds.add("arandanos");
-if (collectedKeyCount >= 7) unlockedFruitIds.add("pina");
-fruits.filter(fruit => fruit.requiresKeyCount && collectedKeyCount >= fruit.requiresKeyCount).forEach(fruit => unlockedFruitIds.add(fruit.id));
+let collectedKeyCount = 0;
+let pendingFruitChoices = 0;
+let keyChoiceOpen = false;
+let pauseStartedAt = 0;
+let pausedDuration = 0;
+const keyChoiceDialog = document.querySelector("#keyChoiceDialog");
+const keyChoiceList = document.querySelector("#keyChoiceList");
 
-function loadPlayerProfile() {
-  try {
-    return JSON.parse(window.localStorage.getItem(PLAYER_PROFILE_KEY) || "null");
-  } catch {
-    return null;
-  }
-}
-
-function loadUnlockedFruits() {
-  try {
-    const profile = loadPlayerProfile();
-    const legacy = JSON.parse(window.localStorage.getItem("super-frutas-unlocked-fruits") || "[]");
-    const stored = Array.isArray(profile?.unlockedFruits) ? profile.unlockedFruits : [];
-    return new Set(["banana", "mandarina", ...legacy, ...stored]);
-  } catch {
-    return new Set(["banana", "mandarina"]);
-  }
-}
-
-function loadCollectedKeyCount() {
-  const profile = loadPlayerProfile();
-  if (Number.isFinite(profile?.collectedKeyCount)) return profile.collectedKeyCount;
-  return Array.isArray(profile?.unlockedFruits) && profile.unlockedFruits.includes("melon") ? 1 : 0;
+function gameNow() {
+  return (keyChoiceOpen ? pauseStartedAt : performance.now()) - pausedDuration;
 }
 
 function persistPlayerProgress() {
   try {
-    const storedProfile = loadPlayerProfile();
-    const storedFruits = Array.isArray(storedProfile?.unlockedFruits) ? storedProfile.unlockedFruits : [];
-    storedFruits.forEach((fruitId) => unlockedFruitIds.add(fruitId));
     const profile = {
       unlockedFruits: [...unlockedFruitIds],
-      collectedKeyCount: Math.max(collectedKeyCount, Number(storedProfile?.collectedKeyCount) || 0),
+      collectedKeyCount,
+      pendingFruitChoices,
     };
     window.localStorage.setItem(PLAYER_PROFILE_KEY, JSON.stringify(profile));
     window.localStorage.setItem("super-frutas-unlocked-fruits", JSON.stringify([...unlockedFruitIds]));
@@ -248,6 +214,9 @@ function setLevelWeather(level) {
   if (level >= 51 && level <= 55) currentWeather = { id: "rain", icon: "🌴", name: "Lluvia tropical", wind: 0.0001 };
   if (level >= 56 && level <= 60) currentWeather = { id: "calm", icon: "🎵", name: "Ritmo tranquilo", wind: 0 };
   if (level >= 61 && level <= 65) currentWeather = { id: "snow", icon: "💎", name: "Polvo de cristal", wind: 0 };
+  if (level >= 66 && level <= 70) currentWeather = { id: "rain", icon: "🍄", name: "Lluvia de hongos", wind: 0.00006 };
+  if (level >= 71 && level <= 75) currentWeather = { id: "calm", icon: "🐸", name: "Bruma del pantano", wind: 0 };
+  if (level >= 76 && level <= 80) currentWeather = { id: "calm", icon: "🧃", name: "Fábrica en marcha", wind: 0 };
   if (level === FINAL_LEVEL) currentWeather = { id: "storm", icon: "🥦", name: "¡Verdura Time!", wind: 0 };
   engine.gravity.y = level >= 36 && level <= 40 ? 0.65 : level >= 46 && level <= 50 ? 0.8 : 1.05;
   weatherIndicator.textContent = `${currentWeather.icon} ${currentWeather.name}`;
@@ -266,12 +235,15 @@ function setLevelWeather(level) {
     "world-jungle",
     "world-music",
     "world-crystal",
+    "world-mushroom",
+    "world-swamp",
+    "world-factory",
     "world-veggie-time",
   ];
   stage.classList.remove(...worldClasses);
   stage.classList.add(worldClasses[Math.min(worldClasses.length - 1, Math.floor((level - 1) / 5))]);
   if ((level - 1) % 5 === 0) {
-    const names = ["Bosque Frutal", "Montañas Ventosas", "Desierto Solar", "Fortaleza Brocoli", "Glaciar Crujiente", "Volcan Picante", "Huerta Espacial", "Océano Burbujeante", "Reino de Caramelo", "Islas del Arcoíris", "Selva Tropical", "Valle Musical", "Cuevas de Cristal", "Verdura Time"];
+    const names = ["Bosque Frutal", "Montañas Ventosas", "Desierto Solar", "Fortaleza Brocoli", "Glaciar Crujiente", "Volcan Picante", "Huerta Espacial", "Océano Burbujeante", "Reino de Caramelo", "Islas del Arcoíris", "Selva Tropical", "Valle Musical", "Cuevas de Cristal", "Jardín de Hongos", "Pantano Pegajoso", "Fábrica de Zumos", "Verdura Time"];
     worldIntro.textContent = names[Math.min(names.length - 1, Math.floor((level - 1) / 5))];
     worldIntro.classList.remove("show");
     requestAnimationFrame(() => worldIntro.classList.add("show"));
@@ -354,7 +326,7 @@ function playLaunchSound() {
 }
 
 function playCollisionSound() {
-  const now = performance.now();
+  const now = gameNow();
   if (now - lastCollisionSoundAt < 85) return;
   lastCollisionSoundAt = now;
   playNoise({ duration: 0.07, volume: 0.08, filterFrequency: 900 });
@@ -432,7 +404,7 @@ function updateUnlocks() {
 
 function isFruitUnlocked(fruit) {
   if (fruit.requiresKey) return unlockedFruitIds.has(fruit.id);
-  if (fruit.requiresKeyCount) return collectedKeyCount >= fruit.requiresKeyCount;
+  if (fruit.requiresKeyCount) return unlockedFruitIds.has(fruit.id);
   return (!fruit.unlockLevel && !fruit.unlockScore) || unlockedFruitIds.has(fruit.id);
 }
 
@@ -442,13 +414,77 @@ function hasPearFallPower() {
 }
 
 function clearPowerTimers() {
-  powerTimers.forEach((timer) => window.clearTimeout(timer));
+  powerTimers.forEach(timer => window.clearTimeout(timer.id));
   powerTimers = [];
 }
 
+function schedulePowerTimer(timer) {
+  timer.startedAt = gameNow();
+  timer.id = window.setTimeout(() => {
+    powerTimers = powerTimers.filter(item => item !== timer);
+    timer.callback();
+  }, timer.remaining);
+}
+
 function addPowerTimer(callback, delay) {
-  const timer = window.setTimeout(callback, delay);
+  const timer = { callback, remaining: delay, startedAt: gameNow(), id: null };
   powerTimers.push(timer);
+  if (!keyChoiceOpen) schedulePowerTimer(timer);
+}
+
+function showKeyChoice() {
+  if (keyChoiceOpen || !pendingFruitChoices || gameOver) return;
+  const locked = fruits.filter(fruit => !isFruitUnlocked(fruit));
+  if (!locked.length) {
+    const bonus = pendingFruitChoices * 250;
+    pendingFruitChoices = 0;
+    setScore(score + bonus);
+    persistPlayerProgress();
+    setMessage(`¡Ya tienes todas las frutas! +${bonus} puntos`);
+    return;
+  }
+  powerTimers.forEach(timer => {
+    window.clearTimeout(timer.id);
+    timer.remaining = Math.max(0, timer.remaining - (gameNow() - timer.startedAt));
+  });
+  pauseStartedAt = performance.now();
+  keyChoiceOpen = true;
+  Runner.stop(runner);
+  keyChoiceList.replaceChildren();
+  document.querySelector("#keyChoiceCount").textContent = pendingFruitChoices > 1 ? `Tienes ${pendingFruitChoices} elecciones. Elige una fruta cada vez.` : "Una llave, una fruta. ¡Tú eliges!";
+  locked.forEach(fruit => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "key-fruit-option";
+    const emoji = document.createElement("span");
+    emoji.className = "key-fruit-emoji";
+    emoji.setAttribute("aria-hidden", "true");
+    emoji.textContent = fruit.emoji;
+    const name = document.createElement("strong");
+    name.textContent = fruit.name;
+    const power = document.createElement("span");
+    power.textContent = fruitPowers[fruit.id].power;
+    button.append(emoji, name, power);
+    button.addEventListener("click", () => chooseKeyFruit(fruit.id));
+    keyChoiceList.append(button);
+  });
+  keyChoiceDialog.showModal();
+}
+
+function chooseKeyFruit(fruitId) {
+  const fruit = fruits.find(item => item.id === fruitId);
+  if (!keyChoiceOpen || !pendingFruitChoices || !fruit || isFruitUnlocked(fruit)) return;
+  unlockedFruitIds.add(fruitId);
+  pendingFruitChoices -= 1;
+  persistPlayerProgress();
+  keyChoiceDialog.close();
+  pausedDuration += performance.now() - pauseStartedAt;
+  keyChoiceOpen = false;
+  updateFruitTray();
+  setMessage(`¡Has elegido ${fruit.name}! Ya puedes usarla`);
+  powerTimers.forEach(schedulePowerTimer);
+  if (pendingFruitChoices) showKeyChoice();
+  if (!keyChoiceOpen && !gameOver) Runner.run(runner, engine);
 }
 
 function resizeCanvas() {
@@ -468,7 +504,7 @@ function registerLevelBody(body) {
 
 function activateStructure(hitBody, impactVelocity) {
   structureActivated = true;
-  structureActivatedAt = performance.now();
+  structureActivatedAt = gameNow();
 
   const nearbyBodies = levelBodies
     .filter((body) => Composite.get(engine.world, body.id, "body") && body.isStatic)
@@ -751,8 +787,12 @@ function makeCastle() {
   cannons = currentLevel >= 5 && currentLevel % 3 === 2
     ? [{ x: width - scale(105), y: height - scale(112) }]
     : [];
-  nextCannonShotAt = performance.now() + 1800;
-  nextWorldHazardAt = performance.now() + 2600;
+  if (currentLevel >= 76 && currentLevel <= 80) {
+    portals = [{ x: width * 0.42, y: height * 0.48 }, { x: width * 0.7, y: height * 0.24 }];
+    cannons = [{ x: width - scale(105), y: height - scale(112) }];
+  }
+  nextCannonShotAt = gameNow() + 1800;
+  nextWorldHazardAt = gameNow() + 2600;
   levelKey = currentLevel >= 8 && currentLevel % 4 === 0 ? { x: width * 0.52, y: height * 0.3 } : null;
   keyCollected = !levelKey;
   if (currentLevel >= 11 && currentLevel <= 15) {
@@ -779,7 +819,8 @@ function makeGardenTricks() {
   if (levelKey) gardenTricks.fly = { x: width * 0.85, y: height * 0.18, home: { ...levelKey }, carrying: false, scared: false };
   if (currentLevel >= 3) gardenTricks.worm = { x: width * 0.75, y: height - scale(76), nextBite: now + 1800, eaten: 0 };
   if (["rain", "storm"].includes(currentWeather.id)) {
-    [0.4, 0.64].forEach(fraction => {
+    const mushroomSpots = currentLevel >= 66 && currentLevel <= 70 ? [0.38, 0.54, 0.72] : [0.4, 0.64];
+    mushroomSpots.forEach(fraction => {
       const mushroom = Bodies.rectangle(width * fraction, height - scale(78), scale(65), scale(18), {
         label: "mushroom", isStatic: true, isSensor: true, restitution: 1.2, render: { visible: false },
       });
@@ -887,7 +928,7 @@ function drawGardenTricks(ctx) {
 function makeMovingPlatforms() {
   movingPlatforms = [];
   if (currentLevel < (isChallenge ? 3 : 4)) return;
-  const count = isChallenge && currentLevel >= 10 ? 2 : 1;
+  const count = (isChallenge && currentLevel >= 10) || (currentLevel >= 76 && currentLevel <= 80) ? 2 : 1;
   for (let i = 0; i < count; i += 1) {
     const x = width * (0.58 + i * 0.22);
     const y = height * (0.32 + i * 0.13);
@@ -1044,7 +1085,7 @@ function collisionEnergy(attacker, target) {
   if (!attacker || !target) return 0;
   const relativeVelocity = Vector.sub(attacker.velocity, target.velocity);
   const relativeSpeed = Vector.magnitude(relativeVelocity);
-  const impactMultiplier = ["naranja", "dragon"].includes(attacker.game?.id) ? 1.8 : 1;
+  const impactMultiplier = ["naranja"].includes(attacker.game?.id) ? 1.8 : 1;
   return 0.5 * attacker.mass * relativeSpeed * relativeSpeed * impactMultiplier;
 }
 
@@ -1055,13 +1096,13 @@ function damageVegetable(body, energy, source = null) {
     return;
   }
   if (bossIsProtected(body)) {
-    if (performance.now() > (body.game.nextProtectionNoticeAt || 0)) {
-      body.game.nextProtectionNoticeAt = performance.now() + 900;
+    if (gameNow() > (body.game.nextProtectionNoticeAt || 0)) {
+      body.game.nextProtectionNoticeAt = gameNow() + 900;
       setMessage("¡Jefe protegido! Espera a que desaparezca su burbuja");
     }
     return;
   }
-  const now = performance.now();
+  const now = gameNow();
   if (now - body.game.lastDamageAt < 160) return;
   body.game.lastDamageAt = now;
   if (body.game.helmetHits > 0) {
@@ -1078,7 +1119,7 @@ function damageVegetable(body, energy, source = null) {
   }
 
   let damage = energy / Math.max(0.65, body.game.toughness);
-  if (body.game.size >= 29 && !["sandia", "dragon", "naranja", "coco"].includes(source?.game?.id)) {
+  if (body.game.size >= 29 && !["sandia", "naranja", "coco"].includes(source?.game?.id)) {
     damage = Math.min(damage, body.game.maxHealth * 0.48);
   }
   body.game.health = Math.max(0, body.game.health - damage);
@@ -1094,7 +1135,7 @@ function damageVegetable(body, energy, source = null) {
 function damageWoodBlock(body, energy, projectile) {
   if (!body || !body.game || energy < 20) return false;
   if (projectile?.label === "seed" && projectile.woodHit) return false;
-  const maxWoodBreaks = ["naranja", "dragon", "coco"].includes(projectile?.game?.id) ? 5 : 2;
+  const maxWoodBreaks = ["naranja", "coco"].includes(projectile?.game?.id) ? 5 : 2;
   if (projectile?.label === "fruit" && (projectile.woodBlocksBroken || 0) >= maxWoodBreaks) return false;
 
   body.game.health = Math.max(0, body.game.health - energy * 0.58);
@@ -1218,7 +1259,7 @@ function damageTnt(body, damage = 1) {
 
 function checkFallenVegetables() {
   if (!levelHasStarted || !structureActivated || levelChanging) return;
-  if (performance.now() - structureActivatedAt < 650) return;
+  if (gameNow() - structureActivatedAt < 650) return;
 
   Composite.allBodies(engine.world).forEach((body) => {
     if (body.label === "tnt" && !body.game.exploded) {
@@ -1242,7 +1283,7 @@ function checkFallenVegetables() {
 
 function removeStoppedFruits() {
   if (!levelHasStarted || levelChanging) return;
-  const now = performance.now();
+  const now = gameNow();
 
   Composite.allBodies(engine.world).forEach((body) => {
     if (body.label !== "fruit" || !body.wasLaunched) return;
@@ -1315,7 +1356,7 @@ function stickMango(body, hitBody) {
 }
 
 function growPeach(body) {
-  const now = performance.now();
+  const now = gameNow();
   if ((body.peachBounces || 0) >= 4 || now < (body.nextPeachBounceAt || 0)) return;
   body.nextPeachBounceAt = now + 250;
   body.peachBounces = (body.peachBounces || 0) + 1;
@@ -1330,11 +1371,11 @@ function applySpecialFruitPhysics() {
   updateGardenTricks();
   updateMovingPlatforms();
   updateFruitLinks();
-  const stormPhase = performance.now() / 620;
+  const stormPhase = gameNow() / 620;
   Composite.allBodies(engine.world).forEach((body) => {
     if (body.label !== "fruit" || !body.wasLaunched) return;
 
-    if (body.tornadoUntil > performance.now()) {
+    if (body.tornadoUntil > gameNow()) {
       Composite.allBodies(engine.world).forEach(target => {
         if (!["vegetable", "block", "glassBlock", "iceBlock", "gelBlock"].includes(target.label)) return;
         const offset = Vector.sub(target.position, body.position);
@@ -1347,6 +1388,9 @@ function applySpecialFruitPhysics() {
           y: target.mass * (offset.x * 0.000008 - 0.0018),
         });
       });
+    }
+    if (currentLevel >= 71 && currentLevel <= 75 && body.position.y > height - scale(155) && body.position.x > width * 0.4) {
+      Body.applyForce(body, body.position, { x: -body.mass * body.velocity.x * 0.00012, y: 0 });
     }
     if (currentWeather.wind) {
       Body.applyForce(body, body.position, { x: body.mass * currentWeather.wind, y: 0 });
@@ -1370,11 +1414,11 @@ function applySpecialFruitPhysics() {
       });
     }
 
-    if (portals.length === 2 && performance.now() > portalCooldownUntil) {
+    if (portals.length === 2 && gameNow() > portalCooldownUntil) {
       const entranceIndex = portals.findIndex((portal) => Vector.magnitude(Vector.sub(body.position, portal)) < scale(48));
       if (entranceIndex >= 0) {
         const exit = portals[1 - entranceIndex];
-        portalCooldownUntil = performance.now() + 900;
+        portalCooldownUntil = gameNow() + 900;
         Body.setPosition(body, { x: exit.x + scale(48), y: exit.y });
         Body.setVelocity(body, { x: Math.max(8, body.velocity.x), y: body.velocity.y - 1 });
         addBreak(exit.x, exit.y, "#6df3ff", "✦");
@@ -1382,7 +1426,7 @@ function applySpecialFruitPhysics() {
       }
     }
 
-    const hasFallRescue = (body.game.id === "pera" && hasPearFallPower()) || body.game.id === "dragon";
+    const hasFallRescue = (body.game.id === "pera" && hasPearFallPower());
     if (hasFallRescue && body.position.y > height - 24) {
       Body.setPosition(body, {
         x: Math.max(getCatapultAnchor().x + 80, Math.min(width - 80, body.position.x)),
@@ -1405,7 +1449,7 @@ function applySpecialFruitPhysics() {
 }
 
 function updateEnemyHazards() {
-  const now = performance.now();
+  const now = gameNow();
   Composite.allBodies(engine.world).forEach((body) => {
     if (body.label !== "vegetable" || body.game.broken) return;
     if (body.game.isGhost) {
@@ -1436,39 +1480,10 @@ function updateEnemyHazards() {
   if (keyFruit) {
     keyCollected = true;
     collectedKeyCount += 1;
-    const melonWasLocked = !unlockedFruitIds.has("melon");
-    const orangeWasLocked = !unlockedFruitIds.has("naranja");
-    const strawberryWasLocked = collectedKeyCount === 3;
-    unlockedFruitIds.add("melon");
-    if (collectedKeyCount >= 2) unlockedFruitIds.add("naranja");
-    if (collectedKeyCount >= 3) unlockedFruitIds.add("fresa");
-    if (collectedKeyCount >= 4) unlockedFruitIds.add("limon");
-    if (collectedKeyCount >= 5) unlockedFruitIds.add("coco");
-    if (collectedKeyCount >= 6) unlockedFruitIds.add("arandanos");
-    if (collectedKeyCount >= 7) unlockedFruitIds.add("pina");
-    const newKeyFruit = fruits.find(fruit => fruit.requiresKeyCount === collectedKeyCount);
-    if (newKeyFruit) unlockedFruitIds.add(newKeyFruit.id);
+    pendingFruitChoices += 1;
     persistPlayerProgress();
-    updateFruitTray();
-    if (collectedKeyCount >= 8 && newKeyFruit) {
-      setMessage(`¡Llave ${collectedKeyCount}! ¡${newKeyFruit.name} desbloqueado!`);
-    } else if (collectedKeyCount === 7) {
-      setMessage("¡Séptima llave! ¡Piña Lanzahojas desbloqueada!");
-    } else if (collectedKeyCount === 6) {
-      setMessage("¡Sexta llave! ¡Arándanos Mini desbloqueados!");
-    } else if (collectedKeyCount === 5) {
-      setMessage("¡Quinta llave! ¡Coco Explosivo desbloqueado!");
-    } else if (collectedKeyCount === 4) {
-      setMessage("¡Cuarta llave! ¡Limón Ácido desbloqueado!");
-    } else if (strawberryWasLocked) {
-      setMessage("¡Tercera llave! ¡Fresa Inflable desbloqueada!");
-    } else if (collectedKeyCount >= 2 && orangeWasLocked) {
-      setMessage("¡Segunda llave! ¡Naranja de Zumo desbloqueada!");
-    } else if (melonWasLocked) {
-      setMessage("¡Llave encontrada! ¡Melon de Fuego desbloqueado!");
-    } else {
-      setMessage("¡Llave encontrada! Jaula abierta");
-    }
+    setMessage("¡Llave encontrada! ¡Elige una fruta nueva!");
+    showKeyChoice();
     addBreak(levelKey.x, levelKey.y, "#ffd447", "★");
   }
   if (launched && now > nextWorldHazardAt) {
@@ -1578,7 +1593,8 @@ function finishLevel() {
 
 function activatePower(fruitBody) {
   if (!fruitBody || !fruitBody.game) return;
-  const isDragon = fruitBody.game.id === "dragon";
+
+  if (fruitBody.game.id === "melocoton") fruitBody.restitution = 0.95;
 
   if (fruitBody.game.id === "cerezas") {
     addPowerTimer(() => {
@@ -1597,7 +1613,7 @@ function activatePower(fruitBody) {
     }, 240);
   }
   if (fruitBody.game.id === "kiwi") {
-    fruitBody.tornadoUntil = performance.now() + 1900;
+    fruitBody.tornadoUntil = gameNow() + 1900;
     setMessage("¡Tornado de kiwi!");
   }
 
@@ -1664,7 +1680,7 @@ function activatePower(fruitBody) {
     addPowerTimer(() => explodeJuice(fruitBody), 1500);
   }
 
-  if (fruitBody.game.id === "fresa" || isDragon) {
+  if (fruitBody.game.id === "fresa") {
     addPowerTimer(() => {
       if (!Composite.get(engine.world, fruitBody.id, "body") || fruitBody.inflated) return;
       fruitBody.inflated = true;
@@ -1675,22 +1691,22 @@ function activatePower(fruitBody) {
         y: fruitBody.velocity.y - 1.4,
       });
       addBreak(fruitBody.position.x, fruitBody.position.y, "#ff6f8a", "¡PLOP!");
-      setMessage(isDragon ? "¡El dragón se infló!" : "¡La fresa se inflo!");
-    }, 280);
+      setMessage("¡La fresa se inflo!");
+    }, 80);
   }
 
-  if (fruitBody.game.id === "naranja" || isDragon) {
+  if (fruitBody.game.id === "naranja") {
     addPowerTimer(() => {
       if (!Composite.get(engine.world, fruitBody.id, "body")) return;
       fruitBody.juiceMode = true;
-      if (!isDragon) fruitBody.game = { ...fruitBody.game, emoji: "🧃" };
+      fruitBody.game = { ...fruitBody.game, emoji: "🧃" };
       addBreak(fruitBody.position.x, fruitBody.position.y, "#ffad2f", "💦");
-      setMessage(isDragon ? "¡Zumo de dragón preparado!" : "¡La naranja se convirtio en zumo!");
+      setMessage("¡La naranja se convirtio en zumo!");
     }, 360);
     addPowerTimer(() => explodeJuice(fruitBody), 1050);
   }
 
-  if (fruitBody.game.id === "melon" || isDragon) {
+  if (fruitBody.game.id === "melon") {
     for (let i = 0; i < 5; i += 1) {
       addPowerTimer(() => {
         if (!Composite.get(engine.world, fruitBody.id, "body")) return;
@@ -1701,10 +1717,10 @@ function activatePower(fruitBody) {
         addBreak(fire.position.x, fire.position.y, "#ff7a24", "🔥");
       }, 180 + i * 130);
     }
-    setMessage(isDragon ? "¡Fuego de dragón!" : "¡Melon de Fuego!");
+    setMessage("¡Melon de Fuego!");
   }
 
-  if (fruitBody.game.id === "pera" || isDragon) {
+  if (fruitBody.game.id === "pera") {
     addPowerTimer(() => {
       if (!Composite.get(engine.world, fruitBody.id, "body")) return;
       Body.setVelocity(fruitBody, {
@@ -1713,49 +1729,47 @@ function activatePower(fruitBody) {
       });
       Body.setAngularVelocity(fruitBody, 0.42);
       addBreak(fruitBody.position.x, fruitBody.position.y, "#b7ef5d", "⚡");
-      setMessage(isDragon ? "¡Dragon turbo!" : "¡Pera turbo!");
+      setMessage("¡Pera turbo!");
     }, 220);
   }
 
   if (fruitBody.game.id === "banana") addPowerTimer(() => dropBananaPeel(fruitBody), 650);
 
-  if (fruitBody.game.id === "banana" || isDragon) {
-    fruitBody.boomerangReadyAt = performance.now() + 260;
+  if (fruitBody.game.id === "banana") {
+    fruitBody.boomerangReadyAt = gameNow() + 260;
     fruitBody.boomerangUsed = false;
     setMessage("Haz click para activar el bumeran");
   }
 
-  if (fruitBody.game.id === "mandarina" || isDragon) {
+  if (fruitBody.game.id === "mandarina") {
     addPowerTimer(() => {
       if (!Composite.get(engine.world, fruitBody.id, "body")) return;
       const { x, y } = fruitBody.position;
       const base = { x: fruitBody.velocity.x, y: fruitBody.velocity.y };
-      if (!isDragon) Composite.remove(engine.world, fruitBody);
-      addBreak(x, y, isDragon ? "#f04f9b" : "#ffb02e", isDragon ? "✦" : "🍊");
+      Composite.remove(engine.world, fruitBody);
+      addBreak(x, y, "#ffb02e", "🍊");
 
-      const fragmentCount = isDragon ? 8 : 5;
+      const fragmentCount = 5;
       for (let i = 0; i < fragmentCount; i += 1) {
         const angle = -0.72 + i * (1.44 / Math.max(1, fragmentCount - 1));
         const speed = 5.8 + Math.abs(base.x) * 0.38;
-        const fragmentGame = isDragon
-          ? { ...fruitBody.game, id: "dragonFragment", name: "Fragmento dragon", emoji: "🔥" }
-          : fruitBody.game;
+        const fragmentGame = fruitBody.game;
         const gajo = makeFlyingFruit(x, y, fragmentGame, scale(13), {
           x: base.x * 0.72 + Math.cos(angle) * speed,
           y: base.y * 0.72 + Math.sin(angle) * speed,
         });
         Body.setAngularVelocity(gajo, (i - 2) * 0.18);
       }
-      setMessage(isDragon ? "¡Fragmentos dragon!" : `¡${fragmentCount} gajos!`);
+      setMessage(`¡${fragmentCount} gajos!`);
     }, 420);
   }
 
-  if (fruitBody.game.id === "manzana" || isDragon) {
+  if (fruitBody.game.id === "manzana") {
     addPowerTimer(() => {
       if (!Composite.get(engine.world, fruitBody.id, "body")) return;
       const base = { x: Math.max(6, fruitBody.velocity.x), y: fruitBody.velocity.y };
 
-      const seedCount = isDragon ? 10 : 6;
+      const seedCount = 6;
       for (let i = 0; i < seedCount; i += 1) {
         const spread = (i - (seedCount - 1) / 2) * 0.7;
         const seed = makeSeed(fruitBody.position.x + 18, fruitBody.position.y + spread * 4, {
@@ -1765,7 +1779,7 @@ function activatePower(fruitBody) {
         Body.setAngularVelocity(seed, 0.35 + i * 0.08);
       }
       addBreak(fruitBody.position.x, fruitBody.position.y, "#5c3422", "•");
-      setMessage(isDragon ? "¡Semillas de dragon!" : "¡Lluvia de semillas!");
+      setMessage("¡Lluvia de semillas!");
     }, 260);
   }
 
@@ -1778,7 +1792,7 @@ function activatePower(fruitBody) {
     setMessage("¡Sandia pesada!");
   }
 
-  if (fruitBody.game.id === "uvas" || isDragon) {
+  if (fruitBody.game.id === "uvas") {
     Body.setVelocity(fruitBody, {
       x: fruitBody.velocity.x * 1.24 + 1.8,
       y: fruitBody.velocity.y * 1.18 - 0.8,
@@ -1787,22 +1801,22 @@ function activatePower(fruitBody) {
       if (!Composite.get(engine.world, fruitBody.id, "body")) return;
       const { x, y } = fruitBody.position;
       const base = { x: fruitBody.velocity.x, y: fruitBody.velocity.y };
-      if (!isDragon) Composite.remove(engine.world, fruitBody);
-      addBreak(x, y, isDragon ? "#f04f9b" : "#9b5de5", isDragon ? "💥" : "🍇");
+      Composite.remove(engine.world, fruitBody);
+      addBreak(x, y, "#9b5de5", "🍇");
       const grapeGroup = Body.nextGroup(true);
 
-      const grapeCount = isDragon ? 12 : 7;
+      const grapeCount = 7;
       for (let i = 0; i < grapeCount; i += 1) {
         const angle = -0.85 + i * (1.7 / Math.max(1, grapeCount - 1));
-        const grape = makeFlyingFruit(x, y, { ...fruitBody.game, id: "dragonBomb", grapeBomb: true, emoji: "●" }, scale(11), {
+        const grape = makeFlyingFruit(x, y, { ...fruitBody.game, id: "uvaBomba", grapeBomb: true, emoji: "●" }, scale(11), {
           x: base.x * 1.05 + Math.cos(angle) * (5.5 + i * 0.18),
           y: base.y * 0.9 + Math.sin(angle) * 6,
         });
         grape.game.grapeBomb = true;
         grape.collisionFilter.group = grapeGroup;
       }
-      setMessage(isDragon ? "¡Mini bombas dragon!" : "¡Racimo bomba!");
-    }, isDragon ? 680 : 360);
+      setMessage("¡Racimo bomba!");
+    }, 360);
   }
 }
 
@@ -1811,9 +1825,9 @@ function triggerBananaBoomerang() {
     (body) =>
       body.label === "fruit" &&
       body.wasLaunched &&
-      ["banana", "dragon"].includes(body.game?.id) &&
+      ["banana"].includes(body.game?.id) &&
       !body.boomerangUsed &&
-      performance.now() >= (body.boomerangReadyAt || Infinity),
+      gameNow() >= (body.boomerangReadyAt || Infinity),
   );
   if (!boomerangFruit) return;
   boomerangFruit.boomerangUsed = true;
@@ -1823,7 +1837,7 @@ function triggerBananaBoomerang() {
   });
   Body.setAngularVelocity(boomerangFruit, -0.9);
   addBreak(boomerangFruit.position.x, boomerangFruit.position.y, boomerangFruit.game.color, "↩");
-  setMessage(boomerangFruit.game.id === "dragon" ? "¡Dragon bumeran!" : "¡Banana bumeran!");
+  setMessage("¡Banana bumeran!");
 }
 
 function explodeGrape(body) {
@@ -1854,12 +1868,11 @@ function explodeJuice(body) {
   if (!body || body.juiceExploded || !Composite.get(engine.world, body.id, "body")) return;
   body.juiceExploded = true;
   const origin = { ...body.position };
-  // The dragon survives its juice blast so its other powers can finish.
-  if (body.game.id !== "dragon") Composite.remove(engine.world, body);
+  Composite.remove(engine.world, body);
   addBreak(origin.x, origin.y, "#ff941f", "💥");
   addBreak(origin.x, origin.y, "#ffd45c", body.game.id === "coco" ? "🥥" : "💦");
   playBreakSound();
-  const isCoconut = body.game.id === "coco";
+  const isCoconut = ["coco"].includes(body.game.id);
   const blastRadius = scale(isCoconut ? 260 : 185);
   const blastPower = isCoconut ? 1.9 : 1;
 
@@ -1884,11 +1897,11 @@ function explodeJuice(body) {
       damageTnt(target, 2);
     }
   });
-  setMessage(isCoconut ? "¡BOOOM! ¡Superexplosión de coco!" : body.game.id === "dragon" ? "¡Superexplosión de zumo de dragón!" : "¡Superexplosión de zumo!");
+  setMessage(isCoconut ? "¡BOOOM! ¡Superexplosión de coco!" : "¡Superexplosión de zumo!");
 }
 
 function eatFruitNearPlant() {
-  const now = performance.now();
+  const now = gameNow();
   if (!plant || levelChanging || now < plantNextBiteAt) return;
   const biteRadius = scale(108);
   const victim = Composite.allBodies(engine.world)
@@ -1899,7 +1912,7 @@ function eatFruitNearPlant() {
 
   if (victim) {
     plantNextBiteAt = now + 900;
-    plantMouthOpenUntil = performance.now() + 850;
+    plantMouthOpenUntil = gameNow() + 850;
     addBreak(victim.position.x, victim.position.y, "#79c943", "CHOMP!");
     addBreak(plant.position.x, plant.position.y - 24, "#e53950", "🌿");
     Composite.remove(engine.world, victim);
@@ -1964,7 +1977,7 @@ function updateFruitTray() {
     card.classList.toggle("active", index === currentFruitIndex && !isUsed && !isLocked && !launched);
     card.classList.toggle("used", isUsed);
     card.classList.toggle("locked", isLocked);
-    card.classList.toggle("unlocked", ["sandia", "uvas", "dragon", "melon", "fresa", "naranja", "limon", "coco", "arandanos", "pina", "cerezas", "kiwi", "mango", "melocoton"].includes(fruit.id) && !isLocked && !isUsed);
+    card.classList.toggle("unlocked", ["sandia", "uvas", "melon", "fresa", "naranja", "limon", "coco", "arandanos", "pina", "cerezas", "kiwi", "mango", "melocoton"].includes(fruit.id) && !isLocked && !isUsed);
     card.classList.toggle("powered", fruit.id === "pera" && hasPearFallPower() && !isUsed);
     card.disabled = isLocked || isUsed || launched || levelChanging;
   });
@@ -1993,10 +2006,10 @@ function drawLabels() {
   drawGardenTricks(ctx);
 
   Composite.allBodies(engine.world).forEach((body) => {
-    if (body.label === "fruit" && body.tornadoUntil > performance.now()) {
+    if (body.label === "fruit" && body.tornadoUntil > gameNow()) {
       ctx.save();
       ctx.translate(body.position.x, body.position.y);
-      ctx.rotate(performance.now() / 100);
+      ctx.rotate(gameNow() / 100);
       ctx.strokeStyle = "rgba(196, 255, 155, 0.8)";
       ctx.lineWidth = 4;
       for (let i = 0; i < 4; i += 1) {
@@ -2177,7 +2190,7 @@ function drawPortals(ctx) {
   portals.forEach((portal, index) => {
     ctx.save();
     ctx.translate(portal.x, portal.y);
-    ctx.rotate((performance.now() / 700) * (index ? -1 : 1));
+    ctx.rotate((gameNow() / 700) * (index ? -1 : 1));
     ctx.strokeStyle = index ? "#ff79d1" : "#6df3ff";
     ctx.lineWidth = 8;
     ctx.setLineDash([12, 8]);
@@ -2190,7 +2203,7 @@ function drawPortals(ctx) {
 
 function drawReplayTrail(ctx) {
   if (!replayStartedAt || bestTrajectory.length < 2) return;
-  const index = Math.min(bestTrajectory.length - 1, Math.floor((performance.now() - replayStartedAt) / 24));
+  const index = Math.min(bestTrajectory.length - 1, Math.floor((gameNow() - replayStartedAt) / 24));
   ctx.save();
   ctx.strokeStyle = "rgba(255, 239, 120, 0.78)";
   ctx.lineWidth = 5;
@@ -2264,7 +2277,7 @@ function drawPlant(ctx) {
   if (!plant) return;
   const x = plant.position.x;
   const y = plant.position.y;
-  const mouthOpen = performance.now() < plantMouthOpenUntil;
+  const mouthOpen = gameNow() < plantMouthOpenUntil;
 
   ctx.save();
   ctx.translate(x, y);
@@ -2356,7 +2369,7 @@ function drawAngryFruit(ctx, body) {
   const y = body.position.y;
   const faceScale = Math.max(0.56, radius / 28);
 
-  if ((body.game.id === "pera" && hasPearFallPower()) || body.game.id === "dragon") {
+  if ((body.game.id === "pera" && hasPearFallPower())) {
     ctx.save();
     const glow = ctx.createRadialGradient(x, y, radius * 0.45, x, y, radius * 1.35);
     glow.addColorStop(0, "rgba(130, 255, 225, 0.55)");
@@ -2581,8 +2594,8 @@ function setupCollisions() {
       const structureBody = veggie || block || glassBlock || iceBlock || steelBlock || tnt || chest || bodies.find(body => body.label === "movingPlatform");
 
       const mushroom = bodies.find(body => body.label === "mushroom");
-      if (mushroom && launchedFruit && performance.now() > (launchedFruit.nextMushroomBounceAt || 0)) {
-        launchedFruit.nextMushroomBounceAt = performance.now() + 300;
+      if (mushroom && launchedFruit && gameNow() > (launchedFruit.nextMushroomBounceAt || 0)) {
+        launchedFruit.nextMushroomBounceAt = gameNow() + 300;
         Body.setVelocity(launchedFruit, { x: Math.max(5, launchedFruit.velocity.x), y: -14 });
         addBreak(mushroom.position.x, mushroom.position.y, "#ffaaa1", "🍄");
         setMessage("¡Boing! ¡Las setas de lluvia te impulsan!");
@@ -2594,8 +2607,8 @@ function setupCollisions() {
       const grapeHitSurface = bodies.some((body) =>
         ["ground", "movingPlatform", "block", "glassBlock", "iceBlock", "steelBlock", "vegetable", "tnt"].includes(body.label),
       );
-      if (launchedFruit?.game.id === "mango" && structureBody && hitSpeed > 1.2) stickMango(launchedFruit, structureBody);
-      if (launchedFruit?.game.id === "melocoton" && grapeHitSurface && hitSpeed > 1.5) growPeach(launchedFruit);
+      if (launchedFruit && ["mango"].includes(launchedFruit.game.id) && structureBody && hitSpeed > 1.2) stickMango(launchedFruit, structureBody);
+      if (launchedFruit && ["melocoton"].includes(launchedFruit.game.id) && grapeHitSurface && hitSpeed > 1.5) growPeach(launchedFruit);
       if (fire?.isLeaf && structureBody) {
         addBreak(fire.position.x, fire.position.y, "#78db65", "🍃");
         if (veggie) damageVegetable(veggie, 120, fire);
@@ -2634,12 +2647,12 @@ function setupCollisions() {
         return;
       }
 
-      if (steelBlock && launchedFruit && ["sandia", "dragon"].includes(launchedFruit.game.id) && speed > 3.2) {
+      if (steelBlock && launchedFruit && ["sandia"].includes(launchedFruit.game.id) && speed > 3.2) {
         breakSteel(steelBlock);
         return;
       }
       if (steelBlock && (launchedFruit || seed)) {
-        setMessage("El acero solo se rompe con la sandia o el dragon");
+        setMessage("El acero se rompe con sandía o ácido de limón");
         return;
       }
 
@@ -2791,7 +2804,7 @@ function setupMouse() {
 function drawBackground() {
   const ctx = render.context;
   ctx.save();
-  const worldIndex = Math.min(13, Math.floor((currentLevel - 1) / 5));
+  const worldIndex = Math.min(16, Math.floor((currentLevel - 1) / 5));
   const world = [
     ["#315d4a", "#d65343", "#ff9a3d", "#33252c"],
     ["#32647b", "#77b8ca", "#d8edf0", "#39464d"],
@@ -2806,6 +2819,9 @@ function drawBackground() {
     ["#184d49", "#3c9d67", "#b8e88b", "#254638"],
     ["#6b4fa1", "#ce8ed3", "#ffe8bc", "#4f3467"],
     ["#242451", "#7669c7", "#a5f4f2", "#23253e"],
+    ["#225a62", "#62a6a0", "#c9e7af", "#29494b"],
+    ["#334a42", "#718751", "#ced68c", "#303f2f"],
+    ["#475b82", "#91b4bf", "#f6cc89", "#394453"],
     ["#18342c", "#46633f", "#d6c56a", "#192a24"],
   ][worldIndex];
   const sky = ctx.createLinearGradient(0, 0, 0, height);
@@ -2825,6 +2841,7 @@ function drawBackground() {
   ctx.closePath();
   ctx.fill();
 
+  if (!["rain", "storm", "snow"].includes(currentWeather.id)) {
   ctx.fillStyle = "#ffcf3f";
   ctx.beginPath();
   ctx.arc(width * 0.1, 58, 46, 0, Math.PI * 2);
@@ -2833,6 +2850,7 @@ function drawBackground() {
   ctx.lineWidth = 18;
   ctx.stroke();
 
+  }
   ctx.fillStyle = "rgba(47, 42, 62, 0.78)";
   for (const cloud of [
     [width * 0.28, 74, 38],
@@ -2845,15 +2863,6 @@ function drawBackground() {
     ctx.arc(cloud[0] + cloud[2], cloud[1], cloud[2] * 0.8, 0, Math.PI * 2);
     ctx.fill();
   }
-
-  ctx.strokeStyle = "#ffe967";
-  ctx.lineWidth = 7;
-  ctx.beginPath();
-  ctx.moveTo(width * 0.5, 120);
-  ctx.lineTo(width * 0.47, 177);
-  ctx.lineTo(width * 0.505, 170);
-  ctx.lineTo(width * 0.475, 235);
-  ctx.stroke();
 
   const abyss = ctx.createLinearGradient(0, height * 0.58, 0, height);
   abyss.addColorStop(0, "rgba(45, 27, 35, 0.45)");
@@ -2870,49 +2879,115 @@ function drawBackground() {
     ctx.strokeStyle = "rgba(201, 255, 255, 0.65)";
     ctx.lineWidth = 2;
     for (let i = 0; i < 22; i += 1) {
-      const y = height - ((performance.now() * 0.035 + i * 41) % (height + 30));
+      const y = height - ((gameNow() * 0.035 + i * 41) % (height + 30));
       ctx.beginPath();
       ctx.arc((i * 137 + Math.sin(y / 60) * 12) % width, y, 4 + i % 6, 0, Math.PI * 2);
       ctx.stroke();
     }
   }
-  drawWeatherEffects(ctx);
+  if (currentLevel >= 71 && currentLevel <= 75) {
+    ctx.fillStyle = "rgba(139, 171, 72, 0.6)";
+    ctx.beginPath();
+    ctx.ellipse(width * 0.68, height - scale(88), width * 0.27, scale(35), 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "#cfdf8b";
+    for (let i = 0; i < 9; i += 1) {
+      const radius = 3 + Math.sin(gameNow() / 600 + i) * 2;
+      ctx.beginPath(); ctx.arc(width * (0.45 + i * 0.055), height - scale(85) + Math.sin(i) * 10, radius, 0, Math.PI * 2); ctx.fill();
+    }
+  }
   ctx.restore();
 }
 
 function drawWeatherEffects(ctx) {
-  const time = performance.now() / 18;
-  if (["rain", "storm"].includes(currentWeather.id)) {
-    ctx.fillStyle = currentWeather.id === "storm" ? "rgba(184, 220, 255, 0.68)" : "rgba(190, 232, 255, 0.62)";
-    const drops = currentWeather.id === "storm" ? 70 : 42;
+  const time = gameNow();
+  const weather = currentWeather.id;
+  ctx.save();
+  if (["rain", "storm", "snow"].includes(weather)) {
+    ctx.fillStyle = weather === "snow" ? "rgba(214, 234, 244, 0.9)" : weather === "storm" ? "rgba(39, 55, 76, 0.95)" : "rgba(75, 102, 120, 0.94)";
+    [0.1, 0.44, 0.78].forEach((fraction, index) => {
+      const x = width * fraction + Math.sin(time / 3800 + index) * 10;
+      const y = 55 + index % 2 * 8;
+      ctx.beginPath();
+      ctx.ellipse(x, y + 10, 88, 28, 0, 0, Math.PI * 2);
+      ctx.ellipse(x - 36, y - 4, 38, 32, 0, 0, Math.PI * 2);
+      ctx.ellipse(x + 12, y - 14, 45, 37, 0, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  }
+  if (weather === "calm") {
+    // Gentle sunbeams stay near the edge so they do not hide the targets.
+    ctx.strokeStyle = "rgba(255, 228, 126, 0.35)";
+    ctx.lineWidth = 5;
+    for (let i = 0; i < 9; i += 1) {
+      const angle = i * Math.PI * 2 / 9 + time / 18000;
+      ctx.beginPath();
+      ctx.moveTo(width * 0.1 + Math.cos(angle) * 58, 58 + Math.sin(angle) * 58);
+      ctx.lineTo(width * 0.1 + Math.cos(angle) * 77, 58 + Math.sin(angle) * 77);
+      ctx.stroke();
+    }
+  }
+  if (["windRight", "windLeft"].includes(weather)) {
+    const direction = weather === "windRight" ? 1 : -1;
+    for (let i = 0; i < 15; i += 1) {
+      const travel = ((i * 109 + time * 0.2) % (width + 180)) - 90;
+      const x = direction > 0 ? travel : width - travel;
+      const y = 70 + ((i * 73) % Math.max(1, height - 110)) + Math.sin(time / 420 + i) * 14;
+      ctx.strokeStyle = "rgba(225, 251, 255, 0.65)";
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(x - direction * 50, y);
+      ctx.quadraticCurveTo(x - direction * 20, y - 10, x, y); ctx.stroke();
+      ctx.save(); ctx.translate(x, y); ctx.rotate(direction * time / 500 + i);
+      ctx.fillStyle = i % 2 ? "#f2cf64" : "#b5e38a";
+      ctx.beginPath(); ctx.ellipse(0, 0, 9, 4, -0.4, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+  }
+  if (["rain", "storm"].includes(weather)) {
+    const storm = weather === "storm";
+    ctx.strokeStyle = storm ? "rgba(202, 238, 255, 0.85)" : "rgba(183, 229, 255, 0.82)";
+    ctx.lineWidth = storm ? 2.3 : 2;
+    ctx.lineCap = "round";
+    const drops = Math.min(storm ? 140 : 95, Math.max(50, Math.floor(width / 10)));
     for (let i = 0; i < drops; i += 1) {
-      const x = (i * 97 + time * 3.5) % (width + 80) - 40;
-      const y = (i * 61 + time * 5.2) % height;
-      ctx.beginPath();
-      ctx.ellipse(x, y, 2.2, 6.5, 0.35, 0, Math.PI * 2);
-      ctx.fill();
+      const x = ((i * 97 + time * 0.09) % (width + 60)) - 30;
+      const y = (i * 61 + time * (storm ? 0.65 : 0.45)) % height;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - 5, y + (storm ? 22 : 15)); ctx.stroke();
     }
-    if (currentWeather.id === "storm" && Math.sin(performance.now() / 430) > 0.96) {
-      ctx.fillStyle = "rgba(230, 241, 255, 0.16)";
-      ctx.fillRect(0, 0, width, height * 0.62);
-    }
-  }
-
-  if (currentWeather.id === "snow") {
-    ctx.fillStyle = "rgba(244, 252, 255, 0.88)";
-    for (let i = 0; i < 48; i += 1) {
-      const sway = Math.sin(time * 0.025 + i) * 18;
-      const x = (i * 83 + sway) % (width + 40) - 20;
-      const y = (i * 47 + time * (0.7 + (i % 3) * 0.14)) % height;
-      ctx.beginPath();
-      ctx.arc(x, y, 2 + (i % 3), 0, Math.PI * 2);
-      ctx.fill();
+    if (storm) {
+      const phase = time % 6500;
+      if (phase > 4500 && phase < 5300) {
+        const glow = Math.sin((phase - 4500) / 800 * Math.PI);
+        ctx.fillStyle = `rgba(219, 237, 255, ${glow * 0.1})`;
+        ctx.fillRect(0, 0, width, height);
+        ctx.strokeStyle = `rgba(255, 240, 156, ${glow})`;
+        ctx.lineWidth = 5;
+        const x = width * 0.76;
+        ctx.beginPath(); ctx.moveTo(x, 25); ctx.lineTo(x - 28, 85);
+        ctx.lineTo(x + 3, 77); ctx.lineTo(x - 35, 150); ctx.stroke();
+      }
     }
   }
+  if (weather === "snow") {
+    ctx.fillStyle = "rgba(250, 254, 255, 0.95)";
+    const flakes = Math.min(85, Math.max(40, Math.floor(width / 12)));
+    for (let i = 0; i < flakes; i += 1) {
+      const x = ((i * 83 + Math.sin(time / 1100 + i) * 28 + width) % (width + 30)) - 15;
+      const y = (i * 47 + time * (0.035 + (i % 3) * 0.012)) % height;
+      ctx.beginPath(); ctx.arc(x, y, 2 + i % 4, 0, Math.PI * 2); ctx.fill();
+      if (i % 5 === 0) {
+        ctx.strokeStyle = "rgba(237, 251, 255, 0.85)"; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(x - 6, y); ctx.lineTo(x + 6, y);
+        ctx.moveTo(x, y - 6); ctx.lineTo(x, y + 6); ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
 }
 
 function startGame({ preserveScore = false } = {}) {
   const nextScore = preserveScore ? score : 0;
+  const nextLevel = preserveScore ? currentLevel : 1;
   gameOver = false;
   resetButton.disabled = false;
   resizeCanvas();
@@ -2934,15 +3009,22 @@ function startGame({ preserveScore = false } = {}) {
     },
   });
   runner = Runner.create();
-  currentLevel = 1;
+  currentLevel = nextLevel;
   setLevelWeather(currentLevel);
-  levelEl.textContent = "1";
+  levelEl.textContent = String(currentLevel);
   levelChanging = false;
   currentFruitIndex = 0;
   usedFruitIds = new Set();
   fruitUseCounts = new Map();
-  unlockedFruitIds = loadUnlockedFruits();
   if (!preserveScore) {
+    unlockedFruitIds = new Set(["banana", "mandarina"]);
+    collectedKeyCount = 0;
+    pendingFruitChoices = 0;
+    lives = isChallenge ? 4 : 6;
+    updateLives();
+    bestTrajectory = [];
+    activeTrajectory = [];
+    replayButton.disabled = true;
     announcedFruitIds = new Set();
     pearPowerAnnounced = false;
   }
@@ -2952,7 +3034,7 @@ function startGame({ preserveScore = false } = {}) {
   breakParticles = [];
   clearPowerTimers();
   setScore(nextScore);
-  setMessage("Nivel 1: elige una fruta");
+  setMessage(currentLevel === 1 ? "Nivel 1: empieza con Banana y Mandarina" : `Nivel ${currentLevel}: elige una fruta`);
 
   makeGround();
   const anchor = makeCatapult();
@@ -2976,6 +3058,7 @@ function startGame({ preserveScore = false } = {}) {
   Events.on(render, "beforeRender", drawBackground);
   Events.on(render, "afterRender", () => {
     drawLabels();
+    drawWeatherEffects(render.context);
     drawParticles();
   });
 
@@ -2984,7 +3067,7 @@ function startGame({ preserveScore = false } = {}) {
 }
 
 resetButton.addEventListener("click", () => {
-  if (levelChanging || gameOver) return;
+  if (levelChanging || gameOver || keyChoiceOpen) return;
   getAudioContext();
   lives -= 1;
   updateLives();
@@ -3003,18 +3086,20 @@ homeButton.addEventListener("click", () => persistPlayerProgress());
 document.querySelector("#headerHomeButton").addEventListener("click", persistPlayerProgress);
 replayButton.addEventListener("click", () => {
   if (bestTrajectory.length < 2) return;
-  replayStartedAt = performance.now();
+  replayStartedAt = gameNow();
   setMessage("Repeticion del mejor tiro");
 });
 fruitCards.forEach((card, index) => {
   card.addEventListener("click", () => chooseFruit(index));
 });
 window.addEventListener("resize", () => {
-  if (gameOver) return;
+  if (gameOver || keyChoiceOpen) return;
   window.clearTimeout(window.resizeGameTimer);
   window.resizeGameTimer = window.setTimeout(() => startGame({ preserveScore: true }), 250);
 });
 window.addEventListener("pagehide", persistPlayerProgress);
 
+keyChoiceDialog.addEventListener("cancel", event => event.preventDefault());
 updateLives();
 startGame();
+showKeyChoice();

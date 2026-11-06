@@ -1,5 +1,5 @@
 /* The home page has its own layout, independent from the game stage. */
-.start-page { --home-ink: #204d3e; background: #fffaf0; color: var(--home-ink); }
+.start-page { --home-ink: #edf3df; background: radial-gradient(ellipse at 85% 10%, #3b5842 0, transparent 45%), linear-gradient(160deg, #243f37, #182e2b); color: var(--home-ink); }
 .start-page a { -webkit-tap-highlight-color: transparent; }
 .start-page :focus-visible { outline: 3px solid #ce542e; outline-offset: 5px; }
 .start-page h1, .start-page h2, .start-page p { margin-top: 0; }
@@ -11,7 +11,7 @@
 .home-header nav { display: flex; align-items: center; gap: 30px; }
 .home-header nav a { color: #496251; text-decoration: none; font-weight: 700; }
 .home-header nav a:hover { color: #dc643a; }
-.home-header nav .nav-mode { padding: 9px 17px; border: 1px solid #d5dfc8; border-radius: 50px; }
+.home-header nav .nav-play { padding: 9px 17px; border: 1px solid #d5dfc8; border-radius: 50px; }
 .start-page .start-screen { display: grid; grid-template-columns: 1fr 1fr; align-items: center; gap: 14px; max-width: 1400px; min-height: 0; margin: 12px auto 0; padding: 32px 5% 52px; overflow: visible; background: none; }
 .start-screen::after { display: none; }
 .start-page .start-copy { width: auto; padding: 0; }
@@ -42,9 +42,7 @@
 .hero-mascot { position: absolute; display: grid; place-items: center; aspect-ratio: 1; border-radius: 50%; filter: drop-shadow(0 15px 9px #214e3e22); animation: homeFloat 3.5s ease-in-out infinite; }
 .mascot-apple { width: 40%; left: 16%; top: 23%; font-size: clamp(100px, 15vw, 205px); transform: rotate(-14deg); }
 .mascot-orange { width: 25%; right: 3%; top: 15%; font-size: clamp(65px, 9vw, 122px); animation-delay: -.8s; }
-.mascot-dragon { width: 23%; left: 2%; top: 4%; font-size: clamp(65px, 8vw, 115px); animation-delay: -1.6s; }
 .hero-mascot::before { content: ""; position: absolute; z-index: 2; width: 29%; height: 12%; top: 42%; left: 35%; background: linear-gradient(22deg, transparent 39%, #332721 42% 60%, transparent 63%) left / 45% 100% no-repeat, linear-gradient(-22deg, transparent 39%, #332721 42% 60%, transparent 63%) right / 45% 100% no-repeat; }
-.mascot-dragon::before { display: none; }
 .arena-spark { position: absolute; font-size: 35px; color: #e8b83d; animation: homeTwinkle 2.5s ease-in-out infinite; }.spark-one { top: 13%; left: 55%; }.spark-two { top: 48%; right: 5%; font-size: 25px; animation-delay: -1s; }
 .flight-path { position: absolute; inset: 0; width: 100%; height: 100%; }
 .hero-catapult { position: absolute; left: 19%; bottom: 19%; width: 12%; height: 23%; transform: rotate(-8deg); }
@@ -108,12 +106,12 @@
   .start-page .start-fruit::before, .start-page .start-fruit::after { scale: .7; }
 }
 @media (max-width: 600px) {
-  .home-header { padding-top: 17px; padding-bottom: 10px; }.home-brand { font-size: 1.2rem; }.home-header nav a:not(.nav-mode) { display: none; }.home-header nav .nav-mode { padding: 7px 11px; font-size: .78rem; }
+  .home-header { padding-top: 17px; padding-bottom: 10px; }.home-brand { font-size: 1.2rem; }.home-header nav a:not(.nav-play) { display: none; }.home-header nav .nav-play { padding: 7px 11px; font-size: .78rem; }
   .start-page .start-screen { grid-template-columns: 1fr; padding-top: 28px; padding-bottom: 10px; }
   .start-page .start-copy { text-align: center; }.hero-badge { font-size: .64rem; }.start-page .start-copy h1 { font-size: clamp(3.2rem, 12vw, 4.5rem); margin-top: 16px; }
   .start-page .start-subtitle { font-size: 1rem; margin-bottom: 20px; }.start-page .start-actions { justify-content: center; gap: 15px; }.start-page .play-button { min-height: 58px; }
   .hero-facts { justify-content: center; margin-top: 24px; gap: 28px; }.hero-facts span + span { padding-left: 28px; }.hero-facts b { font-size: 1.4rem; }
-  .hero-arena { width: min(100%, 420px); margin: 5px auto 0; aspect-ratio: 1.25; }.mascot-apple { font-size: 125px; }.mascot-orange { font-size: 80px; }.mascot-dragon { font-size: 72px; }.arena-caption { bottom: 0; font-size: .6rem; }.arena-castle > span { font-size: 48px; }.arena-castle .castle-carrot { font-size: 33px; }.power-sticker { font-size: .6rem; padding: 6px 9px; }
+  .hero-arena { width: min(100%, 420px); margin: 5px auto 0; aspect-ratio: 1.25; }.mascot-apple { font-size: 125px; }.mascot-orange { font-size: 80px; }.arena-caption { bottom: 0; font-size: .6rem; }.arena-castle > span { font-size: 48px; }.arena-castle .castle-carrot { font-size: 33px; }.power-sticker { font-size: .6rem; padding: 6px 9px; }
   .fruit-team { padding: 28px 5%; }.section-heading { display: block; margin-bottom: 10px; }.section-heading > p { margin-top: 12px; font-size: .82rem; }.section-heading > p br { display: none; }.section-heading h2 { font-size: 1.7rem; }
   .start-page .start-fruits { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; padding: 15px 0; }.start-page .start-fruit { font-size: clamp(1.6rem, 6vw, 2.5rem); }
   .start-page .mode-section { padding: 24px 18px; margin-top: 5px; border-radius: 24px; }.mode-copy h2 { font-size: 1.65rem; }.mode-copy > p:not(.section-eyebrow) { font-size: .88rem; }.start-page .mode-picker { gap: 10px; }.start-page .mode-picker label { padding: 14px 10px; border-radius: 16px; }.start-page .mode-picker small { font-size: .72rem; }.mode-name { font-size: 1.1rem; }.mode-description { font-size: .72rem; }.start-page .mode-picker input { right: 10px; top: 12px; width: 18px; height: 18px; }
@@ -122,3 +120,39 @@
 @media (prefers-reduced-motion: reduce) {
   .start-page *, .start-page *::before, .start-page *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+.start-page button.start-fruit { cursor: pointer; font-family: inherit; color: inherit; transition: border-color .2s, box-shadow .2s; }
+.start-page button.start-fruit:hover { border-color: #ed794b; box-shadow: 0 5px 0 #ed794b66; animation-play-state: paused; }
+.fruit-power-dialog { position: fixed; inset: 0; width: min(460px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); margin: auto; overflow-y: auto; padding: 30px; border: 2px solid #dbe3c3; border-radius: 30px; background: #fffaf0; color: #28513d; box-shadow: 0 25px 80px #17352b44; text-align: center; }
+.fruit-power-dialog[open] { animation: fruitCardAppear .2s ease-out; }
+.fruit-power-dialog::backdrop { background: #183f36aa; backdrop-filter: blur(5px); }
+.fruit-power-close { position: absolute; top: 14px; right: 14px; width: 38px; height: 38px; border: 0; border-radius: 50%; background: #eaf0da; color: #28513d; cursor: pointer; font-size: 1.1rem; }
+.fruit-power-emoji { display: grid; place-items: center; width: 100px; height: 100px; margin: 6px auto 22px; background: #eef1d8; border-radius: 30px; box-shadow: 0 6px 0 #dce5bf; font-size: 4rem; transform: rotate(-6deg); }
+.fruit-power-dialog h2 { font-size: 2rem; line-height: 1.1; margin-bottom: 12px; }
+.fruit-power-name { display: inline-block; padding: 5px 12px; border-radius: 10px; background: #ffe8cc; color: #a54d2c; font-size: 1rem; font-weight: 800; margin-bottom: 12px; }
+#fruitPowerDescription { font-size: 1.05rem; line-height: 1.5; color: #657264; }
+.fruit-power-unlock { border-top: 1px solid #e1e7cd; padding-top: 15px; font-size: .85rem; color: #7a8964; }
+.fruit-power-done { width: 100%; padding: 12px; border: 0; border-radius: 14px; background: #ed794b; color: #fffaf0; font: 800 1.15rem "Baloo 2", system-ui, sans-serif; cursor: pointer; box-shadow: 0 4px 0 #bd5532; }
+@keyframes fruitCardAppear { from { opacity: 0; translate: 0 15px; scale: .96; } to { opacity: 1; translate: 0 0; scale: 1; } }
+@media (prefers-reduced-motion: reduce) { .fruit-power-dialog[open] { animation: none; } }
+
+/* A gentle forest dusk behind the bright fruit cards. */
+.start-page .home-header .home-brand, .start-page .home-footer .home-brand { color: #eef3d9; }
+.start-page .home-header nav a { color: #cbd7bc; }
+.start-page .home-header nav .nav-play { border-color: #6b8267; background: #ffffff08; }
+.start-page .start-copy h1 { color: #fff1cf; }
+.start-page .start-subtitle { color: #c6d4be; }
+.start-page .map-button { color: #e2eccb; }
+.start-page .hero-mode-link, .start-page .hero-facts { color: #b9ccaf; }
+.start-page .hero-facts b { color: #eef3d9; }
+.start-page .hero-facts span + span { border-color: #60765d; }
+.start-page .hero-badge { color: #34543d; background: #dce5be; }
+.start-page .fruit-team .section-eyebrow, .start-page .world-map-heading p { color: #b1c896; }
+.start-page .fruit-team .section-heading h2, .start-page .world-map-heading h2 { color: #eef3d9; }
+.start-page .fruit-team .section-heading > p { color: #bed0b2; }
+.start-page .arena-orbit { border-color: #8ba47c66; }
+.start-page .arena-cloud { color: #9ab69a44; }
+.start-page .home-footer { border-color: #587254; color: #b4c5a8; }
+.start-page .home-footer > a:last-child { color: #d4e2c0; }
+
+.start-page .arena-caption { color: #34543d; }

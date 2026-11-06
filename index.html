@@ -12,13 +12,13 @@
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20261103-32" />
-    <link rel="stylesheet" href="home.css?v=20261103-1" />
+    <link rel="stylesheet" href="styles.css?v=20261106-36" />
+    <link rel="stylesheet" href="home.css?v=20261106-5" />
   </head>
   <body class="start-page">
     <header class="home-header">
       <a class="home-brand" href="index.html" aria-label="Super Frutas al Rescate, inicio"><span aria-hidden="true">🍊</span> Codo77<span class="brand-dot">.</span></a>
-      <nav aria-label="Navegación principal"><a href="#fruitTeam">Las frutas</a><a href="#worldMapTitle">Los mundos</a><a class="nav-mode" href="#chooseMode">Modo de juego ↗</a></nav>
+      <nav aria-label="Navegación principal"><a href="#fruitTeam">Las frutas</a><a href="#worldMapTitle">Los mundos</a><a class="nav-play" href="game.html?modo=aventura">Jugar ↗</a></nav>
     </header>
     <main>
       <section class="start-screen" aria-labelledby="gameTitle">
@@ -30,8 +30,7 @@
             <a class="play-button" id="playButton" data-play-link href="game.html?modo=aventura"><span aria-hidden="true">▶</span> ¡A jugar!</a>
             <a class="map-button" href="#worldMapTitle">Explorar mundos <span aria-hidden="true">↗</span></a>
           </div>
-          <a class="hero-mode-link" href="#chooseMode">Modo: <span id="selectedMode">Normal</span> · Cambiar <span aria-hidden="true">↓</span></a>
-          <div class="hero-facts"><span><b>18</b> frutas con poderes</span><span><b>14</b> mundos por descubrir</span></div>
+          <div class="hero-facts"><span><b>17</b> frutas con poderes</span><span><b>17</b> mundos por descubrir</span></div>
         </div>
         <div class="hero-arena" aria-hidden="true">
           <div class="arena-orbit"></div><div class="arena-sun"></div>
@@ -40,7 +39,7 @@
           <svg class="flight-path" viewBox="0 0 600 500" fill="none"><path d="M100 390 Q100 60 470 190" stroke="#fff8d9" stroke-width="4" stroke-dasharray="2 15" stroke-linecap="round"/></svg>
           <div class="arena-hill hill-back"></div><div class="arena-hill hill-front"></div>
           <div class="hero-catapult"><i></i><i></i><i></i></div>
-          <span class="hero-mascot mascot-apple">🍎</span><span class="hero-mascot mascot-orange">🍊</span><span class="hero-mascot mascot-dragon">🐉</span>
+          <span class="hero-mascot mascot-apple">🍎</span><span class="hero-mascot mascot-orange">🍊</span>
           <span class="power-sticker">¡FRUTAS AL PODER! ⚡</span>
           <div class="arena-castle"><span>🥦</span><div class="castle-roof"></div><div class="castle-posts"></div><span class="castle-carrot">🥕</span></div>
           <span class="arena-flower flower-one">✿</span><span class="arena-flower flower-two">✿</span>
@@ -48,36 +47,27 @@
         </div>
       </section>
       <section class="fruit-team" id="fruitTeam" aria-labelledby="fruitTeamTitle">
-        <div class="section-heading"><div><p class="section-eyebrow">CONOCE A TU EQUIPO</p><h2 id="fruitTeamTitle">Una pandilla con mucho jugo<span>!</span></h2></div><p>Fuego, tornados, hojas y rebotes.<br />Cada fruta tiene su truco.</p></div>
-      <div class="start-fruits" aria-hidden="true">
-        <span class="start-fruit fruit-banana">🍌</span>
-        <span class="start-fruit fruit-orange">🍊</span>
-        <span class="start-fruit fruit-apple">🍎</span>
-        <span class="start-fruit fruit-pear">🍐</span>
-        <span class="start-fruit fruit-watermelon">🍉</span>
-        <span class="start-fruit fruit-grapes">🍇</span>
-        <span class="start-fruit fruit-dragon">🐉</span>
-        <span class="start-fruit fruit-melon" title="Melón de Fuego">🍈</span>
-        <span class="start-fruit fruit-strawberry" title="Fresa Inflable">🍓</span>
-        <span class="start-fruit fruit-juice" title="Naranja de Zumo">🍊</span>
-        <span class="start-fruit fruit-lemon" title="Limón Ácido">🍋</span>
-        <span class="start-fruit fruit-coconut" title="Coco Explosivo">🥥</span>
-        <span class="start-fruit fruit-blueberry" title="Arándanos Mini">🫐</span>
-        <span class="start-fruit fruit-pineapple" title="Piña Lanzahojas">🍍</span>
-        <span class="start-fruit fruit-cerezas" title="Cerezas Gemelas">🍒</span>
-        <span class="start-fruit fruit-kiwi" title="Kiwi Tornado">🥝</span>
-        <span class="start-fruit fruit-mango" title="Mango Pegajoso">🥭</span>
-        <span class="start-fruit fruit-melocoton" title="Melocotón Saltarín">🍑</span>
+        <div class="section-heading"><div><p class="section-eyebrow">CONOCE A TU EQUIPO</p><h2 id="fruitTeamTitle">Una pandilla con mucho jugo<span>!</span></h2></div><p>Fuego, tornados, hojas y rebotes.<br />¡Toca una fruta y descubre sus poderes!</p></div>
+      <div class="start-fruits">
+        <button type="button" class="start-fruit fruit-banana" data-fruit-info="banana" aria-label="Ver poderes de Banana" aria-haspopup="dialog">🍌</button>
+        <button type="button" class="start-fruit fruit-orange" data-fruit-info="mandarina" aria-label="Ver poderes de Mandarina" aria-haspopup="dialog">🍊</button>
+        <button type="button" class="start-fruit fruit-apple" data-fruit-info="manzana" aria-label="Ver poderes de Manzana" aria-haspopup="dialog">🍎</button>
+        <button type="button" class="start-fruit fruit-pear" data-fruit-info="pera" aria-label="Ver poderes de Pera" aria-haspopup="dialog">🍐</button>
+        <button type="button" class="start-fruit fruit-watermelon" data-fruit-info="sandia" aria-label="Ver poderes de Sandía Furia" aria-haspopup="dialog">🍉</button>
+        <button type="button" class="start-fruit fruit-grapes" data-fruit-info="uvas" aria-label="Ver poderes de Uvas Bomba" aria-haspopup="dialog">🍇</button>
+        <button type="button" class="start-fruit fruit-melon" data-fruit-info="melon" aria-label="Ver poderes de Melón de Fuego" aria-haspopup="dialog">🍈</button>
+        <button type="button" class="start-fruit fruit-strawberry" data-fruit-info="fresa" aria-label="Ver poderes de Fresa Inflable" aria-haspopup="dialog">🍓</button>
+        <button type="button" class="start-fruit fruit-juice" data-fruit-info="naranja" aria-label="Ver poderes de Naranja de Zumo" aria-haspopup="dialog">🍊</button>
+        <button type="button" class="start-fruit fruit-lemon" data-fruit-info="limon" aria-label="Ver poderes de Limón Ácido" aria-haspopup="dialog">🍋</button>
+        <button type="button" class="start-fruit fruit-coconut" data-fruit-info="coco" aria-label="Ver poderes de Coco Explosivo" aria-haspopup="dialog">🥥</button>
+        <button type="button" class="start-fruit fruit-blueberry" data-fruit-info="arandanos" aria-label="Ver poderes de Arándanos Mini" aria-haspopup="dialog">🫐</button>
+        <button type="button" class="start-fruit fruit-pineapple" data-fruit-info="pina" aria-label="Ver poderes de Piña Lanzahojas" aria-haspopup="dialog">🍍</button>
+        <button type="button" class="start-fruit fruit-cerezas" data-fruit-info="cerezas" aria-label="Ver poderes de Cerezas Gemelas" aria-haspopup="dialog">🍒</button>
+        <button type="button" class="start-fruit fruit-kiwi" data-fruit-info="kiwi" aria-label="Ver poderes de Kiwi Tornado" aria-haspopup="dialog">🥝</button>
+        <button type="button" class="start-fruit fruit-mango" data-fruit-info="mango" aria-label="Ver poderes de Mango Pegajoso" aria-haspopup="dialog">🥭</button>
+        <button type="button" class="start-fruit fruit-melocoton" data-fruit-info="melocoton" aria-label="Ver poderes de Melocotón Saltarín" aria-haspopup="dialog">🍑</button>
       </div>
 
-      </section>
-      <section class="mode-section" id="chooseMode" aria-labelledby="modeTitle">
-        <div class="mode-copy"><p class="section-eyebrow">TÚ ELIGES LA AVENTURA</p><h2 id="modeTitle">¿Cómo quieres jugar?</h2><p>Elige tu ritmo y prepara la catapulta.</p><a class="mode-play" data-play-link href="game.html?modo=aventura">¡Vamos allá! →</a></div>
-        <fieldset class="mode-picker">
-          <legend class="visually-hidden">Modo de juego</legend>
-          <label><input type="radio" name="difficulty" value="aventura" checked /><span class="mode-emoji" aria-hidden="true">🌻</span><span class="mode-name">Normal</span><small>6 vidas · movimientos suaves</small><span class="mode-description">Para explorar, practicar y pasarlo genial.</span></label>
-          <label><input type="radio" name="difficulty" value="desafio" /><span class="mode-emoji" aria-hidden="true">🔥</span><span class="mode-name">Desafío</span><small>4 vidas · más cascos y velocidad</small><span class="mode-description">¡Para valientes con buena puntería!</span></label>
-        </fieldset>
       </section>
     <section class="world-map" aria-labelledby="worldMapTitle">
       <div class="world-map-heading">
@@ -151,15 +141,40 @@
           <strong>Cuevas de Cristal</strong>
           <small>Niveles 61–65</small>
         </article>
-        <article class="world-stop world-veggie-time" data-start-level="66">
+        <article class="world-stop world-mushroom" data-start-level="66">
+          <span class="world-icon" aria-hidden="true">🍄</span>
+          <strong>Jardín de Hongos</strong>
+          <small>Niveles 66–70</small>
+        </article>
+        <article class="world-stop world-swamp" data-start-level="71">
+          <span class="world-icon" aria-hidden="true">🐸</span>
+          <strong>Pantano Pegajoso</strong>
+          <small>Niveles 71–75</small>
+        </article>
+        <article class="world-stop world-factory" data-start-level="76">
+          <span class="world-icon" aria-hidden="true">🧃</span>
+          <strong>Fábrica de Zumos</strong>
+          <small>Niveles 76–80</small>
+        </article>
+        <article class="world-stop world-veggie-time" data-start-level="81">
           <span class="world-icon" aria-hidden="true">🥦</span>
           <strong>Verdura Time</strong>
-          <small>Nivel 66 · Gran final</small>
+          <small>Nivel 81 · Gran final</small>
         </article>
       </div>
     </section>
     </main>
     <footer class="home-footer"><a class="home-brand" href="#gameTitle">🍊 Super Frutas al Rescate</a><span>Hecho con imaginación por Codo77 ✦</span><a href="#gameTitle">Volver arriba ↑</a></footer>
-    <script type="module" src="src/home.js?v=20261103-3"></script>
+    <dialog id="fruitPowerDialog" class="fruit-power-dialog" aria-labelledby="fruitPowerTitle" aria-describedby="fruitPowerDescription">
+      <button type="button" id="closeFruitPower" class="fruit-power-close" aria-label="Cerrar poderes">✕</button>
+      <div class="fruit-power-emoji" id="fruitPowerEmoji" aria-hidden="true"></div>
+      <p class="section-eyebrow">SUPERPODER FRUTAL</p>
+      <h2 id="fruitPowerTitle"></h2>
+      <p class="fruit-power-name" id="fruitPowerName"></p>
+      <p id="fruitPowerDescription"></p>
+      <p class="fruit-power-unlock" id="fruitPowerUnlock"></p>
+      <button type="button" id="doneFruitPower" class="fruit-power-done">¡Qué chulo! ✦</button>
+    </dialog>
+    <script type="module" src="src/home.js?v=20261106-10"></script>
   </body>
 </html>

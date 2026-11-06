@@ -12,7 +12,7 @@
       href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;700;800&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="styles.css?v=20261103-32" />
+    <link rel="stylesheet" href="styles.css?v=20261106-36" />
   </head>
   <body>
     <main class="game-shell">
@@ -56,7 +56,6 @@
         <button class="fruit-card" data-fruit="pera" type="button">🍐 <span>Pera</span></button>
         <button class="fruit-card locked" data-fruit="sandia" type="button">🔒 <span>Sandia</span></button>
         <button class="fruit-card locked" data-fruit="uvas" type="button">🔒 <span>Uvas</span></button>
-        <button class="fruit-card locked" data-fruit="dragon" type="button">🔒 <span>Dragon</span></button>
         <button class="fruit-card locked" data-fruit="melon" type="button">🔒 <span>Melon de Fuego</span></button>
         <button class="fruit-card locked" data-fruit="fresa" type="button">🔒 <span>Fresa</span></button>
         <button class="fruit-card locked" data-fruit="naranja" type="button">🔒 <span>Naranja de Zumo</span></button>
@@ -71,6 +70,13 @@
       </section>
     </main>
 
+    <dialog id="keyChoiceDialog" class="key-choice-dialog" aria-labelledby="keyChoiceTitle" aria-describedby="keyChoiceCount">
+      <p class="dialog-kicker">🔑 ¡Encontraste una llave!</p>
+      <h2 id="keyChoiceTitle">¿Qué fruta quieres?</h2>
+      <p id="keyChoiceCount">Una llave, una fruta. ¡Tú eliges!</p>
+      <div id="keyChoiceList" class="key-choice-list"></div>
+      <p class="key-choice-hint">La partida está en pausa mientras eliges.</p>
+    </dialog>
     <dialog id="gameOverDialog" class="game-over-dialog">
       <div class="game-over-content">
         <p class="dialog-kicker">Fin de la partida</p>
@@ -81,6 +87,6 @@
     </dialog>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.20.0/matter.min.js"></script>
-    <script type="module" src="src/game.js?v=20261103-59"></script>
+    <script type="module" src="src/game.js?v=20261106-68"></script>
   </body>
 </html>
