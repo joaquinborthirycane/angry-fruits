@@ -1,0 +1,10 @@
+{
+  "name": "matter-js",
+  "version": "0.20.0",
+  "source": "https://registry.npmjs.org/matter-js/-/matter-js-0.20.0.tgz",
+  "npm_integrity": "sha512-iC9fYR7zVT3HppNnsFsp9XOoQdQN2tUyfaKg4CHLH8bN+j6GT4Gw7IH2rP0tflAebrHFw730RR3DkVSZRX8hwA==",
+  "files": {
+    "matter.min.js": "72d30be0f579eb02ce1e0b6f9d359a4f392e6837e5a26ba8be5dbee7f88e24ae",
+    "LICENSE": "ed182087be5b26734aa6d4789743de3a97417950e8c1e3ff2e3d19c6462720d3"
+  }
+}

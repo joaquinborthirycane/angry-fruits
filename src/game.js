@@ -350,22 +350,49 @@ function playLevelSound() {
 }
 
 function playKingLaugh() {
+  const audio = getAudioContext();
+  const start = audio.currentTime;
+  // Three descending chuckles, with a quiet echo after each one.
+  [145, 118, 92].forEach((frequency, index) => {
+    [0, 0.2].forEach((echoDelay, echoIndex) => {
+      const at = start + index * 0.43 + echoDelay;
+      const duration = 0.32 + index * 0.045;
+      const voice = audio.createOscillator();
+      const throat = audio.createBiquadFilter();
+      const volume = audio.createGain();
+      voice.type = "sawtooth";
+      voice.frequency.setValueAtTime(frequency, at);
+      voice.frequency.exponentialRampToValueAtTime(frequency * 0.58, at + duration);
+      throat.type = "bandpass";
+      throat.Q.value = 1.2;
+      throat.frequency.setValueAtTime(740, at);
+      throat.frequency.exponentialRampToValueAtTime(360, at + duration);
+      const peak = echoIndex ? 0.025 : 0.085;
+      volume.gain.setValueAtTime(0.0001, at);
+      volume.gain.exponentialRampToValueAtTime(peak, at + 0.035);
+      volume.gain.exponentialRampToValueAtTime(peak * 0.6, at + duration * 0.45);
+      volume.gain.exponentialRampToValueAtTime(0.0001, at + duration);
+      voice.connect(throat);
+      throat.connect(volume);
+      volume.connect(audio.destination);
+      voice.onended = () => { voice.disconnect(); throat.disconnect(); volume.disconnect(); };
+      voice.start(at);
+      voice.stop(at + duration + 0.03);
+    });
+  });
+
   if ("speechSynthesis" in window) {
-    const laugh = new SpeechSynthesisUtterance("Jua, jua, jua");
+    const laugh = new SpeechSynthesisUtterance("¡Jua! ¡Jua! ¡Juaaa!");
     laugh.lang = "es-ES";
-    laugh.rate = 0.82;
-    laugh.pitch = 0.62;
-    laugh.volume = 0.9;
+    laugh.rate = 0.65;
+    laugh.pitch = 0.22;
+    laugh.volume = 0.75;
+    const villainVoice = window.speechSynthesis.getVoices().find(voice =>
+      voice.lang.startsWith("es") && /jorge|diego|carlos/i.test(voice.name));
+    if (villainVoice) laugh.voice = villainVoice;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(laugh);
-    return;
   }
-
-  [310, 270, 225].forEach((frequency, index) => {
-    window.setTimeout(() => {
-      playTone({ frequency, slideTo: frequency * 0.78, duration: 0.24, type: "sawtooth", volume: 0.08 });
-    }, index * 260);
-  });
 }
 
 function setScore(nextScore) {
@@ -1973,7 +2000,9 @@ function updateFruitTray() {
     const isLocked = !isFruitUnlocked(fruit);
     const bananaShotsLeft = Math.max(0, 3 - (fruitUseCounts.get("banana") || 0));
     const fruitName = fruit.id === "banana" && !isLocked ? `Banana ×${bananaShotsLeft}` : fruit.name.replace(" Furia", "");
-    card.innerHTML = `${isLocked ? "🔒" : fruit.emoji} <span>${fruitName}</span>`;
+    const name = document.createElement("span");
+    name.textContent = fruitName;
+    card.replaceChildren(document.createTextNode(`${isLocked ? "🔒" : fruit.emoji} `), name);
     card.classList.toggle("active", index === currentFruitIndex && !isUsed && !isLocked && !launched);
     card.classList.toggle("used", isUsed);
     card.classList.toggle("locked", isLocked);

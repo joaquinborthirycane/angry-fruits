@@ -4,7 +4,7 @@
   "private": true,
   "description": "Super Frutas al Rescate. by Codo77: un juego web de frutas contra verduras con fisica tipo catapulta.",
   "scripts": {
-    "dev": "python3 -m http.server 5173",
-    "start": "python3 -m http.server 5173"
+    "dev": "python3 -m http.server 5173 --bind 127.0.0.1",
+    "start": "python3 -m http.server 5173 --bind 127.0.0.1"
   }
 }

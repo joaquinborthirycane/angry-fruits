@@ -8,8 +8,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: github-pages
@@ -18,31 +16,38 @@ concurrency:
 jobs:
   publicar:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.event.head_commit.message, 'Publicar:')
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
       - name: Descargar version
-        uses: actions/checkout@v6
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+
+        with:
+          persist-credentials: false
 
       - name: Preparar archivos del juego
         run: |
-          mkdir _site
+          python3 scripts/check_security.py
+          mkdir -p _site/src _site/vendor/matter-js
           cp index.html game.html styles.css home.css _site/
-          cp -R src _site/src
+          cp src/game.js src/home.js src/fruit-powers.js _site/src/
+          cp vendor/matter-js/matter.min.js vendor/matter-js/LICENSE _site/vendor/matter-js/
           touch _site/.nojekyll
 
       - name: Configurar GitHub Pages
-        uses: actions/configure-pages@v5
-        with:
-          enablement: true
+        uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5
 
       - name: Subir archivos
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@7b1f4a764d45c48632c6b24a0339c27f5614fb0b # v4
         with:
           path: _site
 
       - name: Publicar
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@d6db90164ac5ed86f2b6aed7e0febac5b3c0c03e # v4

@@ -1,3 +1,18 @@
 .env
 .env.*
 !.env.example
+
+# Local credentials and private files
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+credentials.json
+service-account*.json
+.aws/
+.codex/
+.agents/
+.DS_Store
+node_modules/
+_site/
